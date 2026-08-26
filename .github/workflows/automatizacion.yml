@@ -1,0 +1,31 @@
+name: Generar Informe Mensual de Fichajes
+
+on:
+  schedule:
+    - cron: '0 8 1 * *'
+  workflow_dispatch:
+
+jobs:
+  crear_y_enviar:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar librerías necesarias
+        run: pip install supabase fpdf2
+
+      - name: Ejecutar script generador
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          CORREO_GESTOR: ${{ secrets.CORREO_GESTOR }}
+          MI_CORREO: ${{ secrets.MI_CORREO }}
+          MI_PASSWORD_CORREO: ${{ secrets.MI_PASSWORD_CORREO }}
+        run: python generador_pdf.py
