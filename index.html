@@ -15,19 +15,15 @@
         .form-group { margin-bottom: 1rem; text-align: left; }
         .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
         .form-group input, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 1rem; outline: none; }
-        .form-group input:focus, .form-group select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
         
         .btn { width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; margin-bottom: 0.75rem; }
         .btn-primary { background-color: #18181b; color: white; }
-        .btn-primary:hover { background-color: #27272a; }
         .btn-secondary { background-color: #e4e4e7; color: #18181b; }
-        .btn-secondary:hover { background-color: #d4d4d8; }
         .btn-admin { background-color: #ef4444; color: white; margin-top: 1rem; }
         .btn-warning { background-color: #eab308; color: #18181b; }
         
         .link-text { color: #3b82f6; font-size: 0.9rem; cursor: pointer; text-decoration: underline; margin-top: 1rem; display: inline-block; }
 
-        /* Pantallas ocultas */
         .pantalla { display: none; }
         #pantallaLogin { display: block; } 
         
@@ -44,8 +40,12 @@
         .tipo-entrada { color: #16a34a; font-weight: bold; }
         .tipo-salida { color: #ea580c; font-weight: bold; }
         .tabla-container { max-height: 250px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
-        
         .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        /* --- NUEVO: ESTILOS DE LA VENTANA DE FIRMA --- */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; padding: 1rem; }
+        .modal-content { background: white; padding: 1.5rem; border-radius: 12px; width: 100%; max-width: 400px; text-align: center; }
+        canvas { border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; cursor: crosshair; touch-action: none; width: 100%; height: 180px; margin-bottom: 1rem; }
     </style>
 </head>
 <body>
@@ -76,18 +76,36 @@
         </form>
     </div>
 
-    <!-- 3. PANEL PRINCIPAL (FICHAJE EMPLEADO) -->
+    <!-- 3. PANEL PRINCIPAL -->
     <div class="container pantalla" id="pantallaFichaje">
         <h2>Hola, <span id="nombreUsuario">Usuario</span></h2>
         <p class="subtitle">Registra tu jornada</p>
         <div class="actions">
-            <button class="btn btn-entrada" onclick="registrar('Entrada')">ENTRADA</button>
-            <button class="btn btn-salida" onclick="registrar('Salida')">SALIDA</button>
+            <!-- Entrada va directo, Salida abre el Modal -->
+            <button class="btn btn-entrada" onclick="procesarFichaje('Entrada')">ENTRADA</button>
+            <button class="btn btn-salida" onclick="abrirModalFirma()">SALIDA</button>
         </div>
         <button id="btnAdmin" class="btn btn-admin" style="display:none;" onclick="cargarPanelAdmin()">👑 PANEL ADMINISTRADOR</button>
         <div class="nav-links">
             <span onclick="cargarMisHoras()">Mis horas</span>
             <span onclick="cerrarSesion()">Cerrar sesión</span>
+        </div>
+    </div>
+
+    <!-- VENTANA EMERGENTE (MODAL) DE FIRMA -->
+    <div class="modal-overlay" id="modalFirma">
+        <div class="modal-content">
+            <h2 style="font-size: 1.2rem; margin-bottom: 0;">Firma de Salida</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem; font-size: 0.8rem;">Dibuja tu firma en el recuadro para validar las horas de hoy</p>
+            
+            <!-- Pizarra táctil -->
+            <canvas id="pizarraFirma"></canvas>
+            
+            <button class="btn btn-primary" onclick="confirmarSalidaConFirma()">✅ Guardar y Fichar Salida</button>
+            <div class="row-grid">
+                <button class="btn btn-secondary" style="font-size: 0.85rem;" onclick="limpiarPizarra()">Limpiar</button>
+                <button class="btn btn-secondary" style="font-size: 0.85rem; background: transparent; color: #71717a; border: 1px solid #e4e4e7;" onclick="cerrarModalFirma()">Cancelar</button>
+            </div>
         </div>
     </div>
 
@@ -104,36 +122,26 @@
     <div class="container pantalla" id="pantallaAdmin">
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Gestión y Exportación</p>
-        
         <div class="actions" style="margin-top:0; margin-bottom: 1rem;">
             <button class="btn btn-entrada" onclick="exportarCSV()" style="margin:0; font-size: 0.85rem;">📥 EXPORTAR CSV</button>
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
         </div>
-        
         <div class="tabla-container">
             <table><thead><tr><th>Email</th><th>Fecha</th><th>Hora</th><th>Tipo</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver al inicio</button>
     </div>
 
-    <!-- 6. PANEL CORRECCIÓN (SOLO ADMIN) -->
+    <!-- 6. PANEL CORRECCIÓN ADMIN -->
     <div class="container pantalla" id="pantallaCorreccionAdmin">
         <h2>Fichaje Manual</h2>
         <p class="subtitle">Inserta las horas olvidadas de un empleado</p>
-        <div class="form-group">
-            <label>Trabajador</label>
-            <select id="corrEmpleado"></select>
-        </div>
-        <div class="form-group">
-            <label>Día a corregir</label>
-            <input type="date" id="corrFecha" required>
-        </div>
+        <div class="form-group"><label>Trabajador</label><select id="corrEmpleado"></select></div>
+        <div class="form-group"><label>Día a corregir</label><input type="date" id="corrFecha" required></div>
         <div class="row-grid">
             <div class="form-group"><label>H. ENTRADA</label><input type="time" id="corrEntrada"></div>
             <div class="form-group"><label>H. SALIDA</label><input type="time" id="corrSalida"></div>
         </div>
-        <p style="font-size: 0.75rem; color: #71717a; text-align: left; margin-top: -10px;">Deja en blanco la hora que no necesites corregir.</p>
-        
         <button class="btn btn-primary" onclick="guardarCorreccionAdmin()">Guardar Corrección</button>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Cancelar</button>
     </div>
@@ -147,6 +155,74 @@
 
     let usuarioActual = null;
     let datosPerfil = null;
+
+    // --- LÓGICA DE LA PIZARRA TÁCTIL ---
+    const canvas = document.getElementById('pizarraFirma');
+    const ctx = canvas.getContext('2d');
+    let dibujando = false;
+
+    // Ajustar resolución interna del canvas al tamaño en pantalla para que no se vea borroso
+    function ajustarCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }
+
+    function iniciarTrazo(e) { 
+        dibujando = true; 
+        ctx.beginPath(); 
+        moverTrazo(e); 
+    }
+    function terminarTrazo() { 
+        dibujando = false; 
+        ctx.beginPath(); 
+    }
+    function moverTrazo(e) {
+        if (!dibujando) return;
+        e.preventDefault(); // Bloquea el scroll de la tablet al dibujar
+        
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#18181b';
+        ctx.lineTo(clientX - rect.left, clientY - rect.top);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(clientX - rect.left, clientY - rect.top);
+    }
+
+    // Eventos de ratón
+    canvas.addEventListener('mousedown', iniciarTrazo);
+    canvas.addEventListener('mouseup', terminarTrazo);
+    canvas.addEventListener('mousemove', moverTrazo);
+    // Eventos táctiles para la Tablet
+    canvas.addEventListener('touchstart', iniciarTrazo, {passive: false});
+    canvas.addEventListener('touchend', terminarTrazo);
+    canvas.addEventListener('touchmove', moverTrazo, {passive: false});
+
+    function limpiarPizarra() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+
+    function abrirModalFirma() {
+        document.getElementById('modalFirma').style.display = 'flex';
+        ajustarCanvas(); // Ajusta tamaño al abrirse
+        limpiarPizarra();
+    }
+
+    function cerrarModalFirma() {
+        document.getElementById('modalFirma').style.display = 'none';
+    }
+
+    async function confirmarSalidaConFirma() {
+        // Convertimos el dibujo en un código de texto Base64
+        const firmaBase64 = canvas.toDataURL('image/png');
+        cerrarModalFirma();
+        // Procesamos el fichaje enviándole la firma
+        procesarFichaje('Salida', firmaBase64);
+    }
+    // ------------------------------------
 
     function cambiarPantalla(idDestino) {
         document.querySelectorAll('.pantalla').forEach(p => p.style.display = 'none');
@@ -180,22 +256,25 @@
         usuarioActual = user;
         const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false };
-        
         document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
         document.getElementById('btnAdmin').style.display = datosPerfil.es_admin ? 'block' : 'none';
         cambiarPantalla('pantallaFichaje');
     }
 
-    // REGISTRO DE FICHAJE CON AUTOCIERRE PARA TABLET
-    async function registrar(tipo) {
+    // REGISTRO DE FICHAJE (AHORA ACEPTA LA FIRMA SI ES SALIDA)
+    async function procesarFichaje(tipo, firmaCode = null) {
         if (!usuarioActual) return cerrarSesion();
-        const { error } = await cliente.from('fichajes').insert([{ user_id: usuarioActual.id, email: usuarioActual.email, tipo: tipo }]);
+        
+        const payload = { user_id: usuarioActual.id, email: usuarioActual.email, tipo: tipo };
+        if (firmaCode) payload.firma = firmaCode; // Si hay firma, se adjunta al paquete
+
+        const { error } = await cliente.from('fichajes').insert([payload]);
         
         if (error) {
             alert("Error: " + error.message);
         } else {
             alert(`✅ ${tipo} registrada correctamente.\n\nCerrando sesión para el siguiente empleado...`);
-            setTimeout(() => { cerrarSesion(); }, 1500); // Se cierra tras 1.5 segundos
+            setTimeout(() => { cerrarSesion(); }, 1500);
         }
     }
 
@@ -211,20 +290,12 @@
         cambiarPantalla('pantallaAdmin');
     }
 
-    // --- NUEVO: FUNCIONES DE CORRECCIÓN PARA EL ADMIN ---
     async function abrirCorreccionAdmin() {
-        // Cargar lista de empleados en el desplegable
         const { data } = await cliente.from('empleados').select('email, nombre, apellidos');
         const select = document.getElementById('corrEmpleado');
         select.innerHTML = '<option value="">-- Selecciona empleado --</option>';
-        if(data) {
-            data.forEach(emp => {
-                select.innerHTML += `<option value="${emp.email}">${emp.nombre} ${emp.apellidos}</option>`;
-            });
-        }
-        document.getElementById('corrFecha').value = '';
-        document.getElementById('corrEntrada').value = '';
-        document.getElementById('corrSalida').value = '';
+        if(data) data.forEach(emp => { select.innerHTML += `<option value="${emp.email}">${emp.nombre} ${emp.apellidos}</option>`; });
+        document.getElementById('corrFecha').value = ''; document.getElementById('corrEntrada').value = ''; document.getElementById('corrSalida').value = '';
         cambiarPantalla('pantallaCorreccionAdmin');
     }
 
@@ -233,32 +304,18 @@
         const fecha = document.getElementById('corrFecha').value;
         const hEntrada = document.getElementById('corrEntrada').value;
         const hSalida = document.getElementById('corrSalida').value;
+        if(!email || !fecha || (!hEntrada && !hSalida)) return alert("Faltan datos.");
 
-        if(!email || !fecha || (!hEntrada && !hSalida)) return alert("Faltan datos. Elige empleado, fecha y al menos una hora.");
-
-        // Buscamos el ID interno del trabajador para que luego pueda verlo en "Mis Horas"
         const { data: previo } = await cliente.from('fichajes').select('user_id').eq('email', email).limit(1);
         const workerId = (previo && previo.length > 0) ? previo[0].user_id : usuarioActual.id;
-
         const inserciones = [];
         
-        // Creamos las fechas exactas uniendo el día y la hora.
-        if (hEntrada) {
-            const fechaISO = new Date(`${fecha}T${hEntrada}`).toISOString();
-            inserciones.push({ user_id: workerId, email: email, tipo: 'Entrada (Corregida)', fecha_hora: fechaISO });
-        }
-        if (hSalida) {
-            const fechaISO = new Date(`${fecha}T${hSalida}`).toISOString();
-            inserciones.push({ user_id: workerId, email: email, tipo: 'Salida (Corregida)', fecha_hora: fechaISO });
-        }
+        if (hEntrada) inserciones.push({ user_id: workerId, email: email, tipo: 'Entrada (Corregida)', fecha_hora: new Date(`${fecha}T${hEntrada}`).toISOString() });
+        if (hSalida) inserciones.push({ user_id: workerId, email: email, tipo: 'Salida (Corregida)', fecha_hora: new Date(`${fecha}T${hSalida}`).toISOString() });
 
         const { error } = await cliente.from('fichajes').insert(inserciones);
-        
         if (error) alert("Error al guardar: " + error.message);
-        else {
-            alert("✅ Corrección guardada en la base de datos.");
-            cargarPanelAdmin(); // Volvemos al panel admin y se recarga la tabla
-        }
+        else { alert("✅ Corrección guardada."); cargarPanelAdmin(); }
     }
 
     function pintarTabla(idBody, datos, mostrarEmail) {
@@ -284,7 +341,7 @@
             csv += `${f.email},${fObj.toLocaleDateString('es-ES')},${fObj.toLocaleTimeString('es-ES')},"${f.tipo}"\n`;
         });
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-        const a = document.createElement("a"); a.href = url; a.download = `Registro_${new Date().toLocaleDateString('es-ES')}.csv`; a.click();
+        const a = document.createElement("a"); a.href = url; a.download = `Registro.csv`; a.click();
     }
 
     async function cerrarSesion() {
