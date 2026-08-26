@@ -218,12 +218,21 @@
         cambiarPantalla('pantallaFichaje');
     }
 
-    // Registrar fichaje normal
+    // Registrar fichaje normal (Con Cierre Automático para Tablet)
     async function registrar(tipo) {
         if (!usuarioActual) return cerrarSesion();
-        const { error } = await cliente.from('fichajes').insert([{ user_id: usuarioActual.id, email: usuarioActual.email, tipo: tipo }]);
-        if (error) alert("Error: " + error.message);
-        else alert(`✅ ${tipo} registrada.`);
+        
+        const { error } = await cliente.from('fichajes').insert([
+            { user_id: usuarioActual.id, email: usuarioActual.email, tipo: tipo }
+        ]);
+        
+        if (error) {
+            alert("Error: " + error.message);
+        } else {
+            alert(`✅ ${tipo} registrada correctamente.`);
+            // CIERRE DE SESIÓN AUTOMÁTICO TRAS FICHAR
+            cerrarSesion(); 
+        }
     }
 
     // Registrar Olvido (Audit trail)
