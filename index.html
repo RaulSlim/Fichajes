@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control Horario</title>
+    <title>Control Horario - Gastrobar Don Apolonio</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
@@ -424,7 +424,6 @@
         const { error } = await cliente.auth.signUp({ email: email, password: document.getElementById('regPass').value });
         if (error) return alert("Error: " + error.message);
         
-        // Al crear la cuenta, guardamos todos los datos (el ID ahora se genera solo en Supabase)
         await cliente.from('empleados').insert([{ 
             email: email, 
             nombre: document.getElementById('regNombre').value, 
@@ -486,17 +485,37 @@
         else if (cargo === 'Camarero') { for(let i=1; i<=5; i++) selectRol.innerHTML += `<option value="Rol ${i}">Rol ${i}</option>`; }
     }
 
+    // --- FUNCIÓN ACTUALIZADA CON AVISOS CLAROS DE ERROR/ÉXITO ---
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
-        if (cargo && !rol) return alert("Debes seleccionar un número de Rol");
+        const cargo = document.getElementById('selectCargo').value; 
+        const rol = document.getElementById('selectRol').value;
+        if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
+        const hoy = new Date(); 
+        const diaSemana = hoy.getDay() || 7; 
+        const lunes = new Date(hoy); 
+        lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando);
-        if (error) alert("Error al guardar: " + error.message);
-        else { document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
+        const { data, error } = await cliente
+            .from('empleados')
+            .update({ 
+                cargo: cargo, 
+                rol_turno: rol, 
+                fecha_ancla: fechaAncla 
+            })
+            .eq('email', emailEmpleadoEditando)
+            .select();
+
+        if (error) {
+            alert("Error al guardar: " + error.message);
+        } else if (!data || data.length === 0) {
+            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
+        } else {
+            alert("✅ Rol y turno asignados correctamente.");
+            document.getElementById('modalAsignarRol').style.display = 'none'; 
+            cargarGestionPlantilla(); 
+        }
     }
 
     async function abrirCorreccionAdmin() {
