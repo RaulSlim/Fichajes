@@ -122,7 +122,6 @@
             <p class="subtitle" style="margin-bottom: 0.5rem; font-size: 0.8rem;">Dirección ha modificado tus horas. Por favor, revisa y firma abajo para confirmar que estás de acuerdo:</p>
             
             <div id="listaCorrecciones" style="text-align: left; background: #fefce8; padding: 10px; border-radius: 6px; margin-bottom: 1rem; font-size: 0.8rem; border: 1px solid #fef08a; max-height: 120px; overflow-y: auto;">
-                <!-- Aquí se inyectan las horas pendientes -->
             </div>
 
             <canvas id="pizarraCorrecciones"></canvas>
@@ -144,10 +143,21 @@
     <div class="container pantalla" id="pantallaAdmin">
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Gestión y Exportación</p>
-        <div class="actions" style="margin-top:0; margin-bottom: 1rem; flex-direction: row; display: grid;">
-            <button class="btn btn-entrada" onclick="descargarPDF()" style="margin:0; font-size: 0.85rem;">📄 DESCARGAR PDF</button>
-            <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
+        
+        <!-- NUEVO: SELECTOR DE MES Y BOTONES REDISEÑADOS -->
+        <div class="actions" style="margin-top:0; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+                <label style="text-align: center; color: #71717a;">Selecciona el mes a revisar:</label>
+                <input type="month" id="filtroMes" onchange="cargarPanelAdmin()" style="text-align: center; font-weight: bold;">
+            </div>
+            
+            <!-- Botón PDF oscuro y botón de Gestor Azul para evitar confusiones -->
+            <button class="btn btn-primary" onclick="descargarPDF()" style="margin:0; font-size: 0.85rem;">📄 DESCARGAR PDF</button>
+            <button class="btn" style="margin:0; font-size: 0.85rem; background-color: #3b82f6; color: white;" onclick="despertarRobotEmail()">✉️ ENVIAR AL GESTOR</button>
+            
+            <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem; grid-column: span 2;">✏️ CORREGIR HORAS</button>
         </div>
+
         <div class="tabla-container">
             <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
@@ -180,7 +190,6 @@
     let intervaloContador = null;
     let correccionesPendientes = [];
 
-    // --- SISTEMA UNIVERSAL DE PIZARRAS ---
     function inicializarCanvas(idCanvas) {
         const canvas = document.getElementById(idCanvas);
         const ctx = canvas.getContext('2d');
@@ -240,9 +249,7 @@
         else cargarDatosUsuario(data.user);
     }
 
-    // --- REVISIÓN POR EMAIL (INFALIBLE) ---
     async function revisarCorreccionesPendientes() {
-        // Ahora buscamos estrictamente por el EMAIL del usuario actual
         const { data } = await cliente.from('fichajes')
             .select('id, tipo, fecha_hora')
             .eq('email', usuarioActual.email)
@@ -251,7 +258,6 @@
         
         if (data && data.length > 0) {
             correccionesPendientes = data;
-            
             let htmlLista = "<ul style='padding-left: 20px; margin-top: 5px;'>";
             data.forEach(c => {
                 const fObj = new Date(c.fecha_hora);
@@ -261,12 +267,7 @@
             
             document.getElementById('listaCorrecciones').innerHTML = htmlLista;
             document.getElementById('modalCorrecciones').style.display = 'flex';
-            
-            // Damos un pequeño retraso para que la ventana se dibuje antes de ajustar la pizarra
-            setTimeout(() => {
-                pizarraAudit.ajustar();
-                pizarraAudit.limpiar();
-            }, 100);
+            setTimeout(() => { pizarraAudit.ajustar(); pizarraAudit.limpiar(); }, 100);
         } else {
             verificarEstadoJornada();
         }
@@ -285,7 +286,6 @@
     }
 
     async function verificarEstadoJornada() {
-        // Ahora también comprobamos por EMAIL para evitar fallos de identidad
         const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(1);
         const btnEntrada = document.getElementById('btnEntrada'); const btnSalida = document.getElementById('btnSalida');
         const contador = document.getElementById('contadorTiempo'); const texto = document.getElementById('textoEstado');
@@ -346,17 +346,36 @@
     }
 
     async function cargarMisHoras() {
-        // También por email
         const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(20);
         pintarTabla('tablaMisHoras', data, false, {}); 
         cambiarPantalla('pantallaHistorial');
     }
 
+    // --- NUEVO: CARGA DEL PANEL FILTRADA POR MES ---
     async function cargarPanelAdmin() {
-        const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: false }).limit(100);
+        let mesInput = document.getElementById('filtroMes');
+        // Si entra por primera vez y está vacío, le ponemos el mes actual
+        if (!mesInput.value) {
+            const now = new Date();
+            mesInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+        
+        const [anyo, mes] = mesInput.value.split('-');
+        
+        // Creamos rango desde el día 1 hasta final de mes para filtrar
+        const primerDia = new Date(anyo, mes - 1, 1).toISOString();
+        const ultimoDia = new Date(anyo, mes, 0, 23, 59, 59, 999).toISOString();
+
+        const { data: fichajes } = await cliente.from('fichajes')
+            .select('*')
+            .gte('fecha_hora', primerDia)
+            .lte('fecha_hora', ultimoDia)
+            .order('fecha_hora', { ascending: false });
+
         const { data: empleados } = await cliente.from('empleados').select('*');
         const mapaEmpleados = {};
         if (empleados) empleados.forEach(emp => { mapaEmpleados[emp.email] = emp; });
+        
         pintarTabla('tablaTodosFichajes', fichajes, true, mapaEmpleados);
         cambiarPantalla('pantallaAdmin');
     }
@@ -392,7 +411,8 @@
     function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
         const tbody = document.getElementById(idBody);
         tbody.innerHTML = '';
-        if(!datos) return;
+        if(!datos) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
+        
         datos.forEach(f => {
             const fObj = new Date(f.fecha_hora);
             const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
@@ -415,7 +435,12 @@
         });
     }
 
+    // --- NUEVO: DESCARGAR PDF FILTRADO POR EL MES ELEGIDO ---
     async function descargarPDF() {
+        const [anyo, mes] = document.getElementById('filtroMes').value.split('-');
+        const primerDia = new Date(anyo, mes - 1, 1).toISOString();
+        const ultimoDia = new Date(anyo, mes, 0, 23, 59, 59, 999).toISOString();
+
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
@@ -423,11 +448,16 @@
         doc.text("Registro de Horas - Gastrobar Don Apolonio", 14, 15);
         doc.setFontSize(10);
         doc.setTextColor(100);
-        doc.text("Documento generado el: " + new Date().toLocaleDateString('es-ES'), 14, 22);
+        doc.text(`Periodo auditado: ${mes}/${anyo}`, 14, 22);
 
-        const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: true });
+        const { data: fichajes } = await cliente.from('fichajes')
+            .select('*')
+            .gte('fecha_hora', primerDia)
+            .lte('fecha_hora', ultimoDia)
+            .order('fecha_hora', { ascending: true });
+
         const { data: empleados } = await cliente.from('empleados').select('*');
-        if(!fichajes || fichajes.length === 0) return alert("No hay datos para exportar.");
+        if(!fichajes || fichajes.length === 0) return alert("No hay datos en este mes para exportar.");
 
         const mapa = {};
         if (empleados) empleados.forEach(e => mapa[e.email] = e);
@@ -458,7 +488,14 @@
             }
         });
 
-        doc.save("Registro_Horas_Gastrobar.pdf");
+        doc.save(`Registro_Horas_${mes}_${anyo}.pdf`);
+    }
+
+    // --- NUEVO: BOTÓN DE DESPERTAR ROBOT ---
+    function despertarRobotEmail() {
+        alert("🔒 Por seguridad, las contraseñas de correo no pueden estar escritas dentro del código de esta página web.\n\nPara enviar el correo al gestor ahora mismo, te voy a redirigir al panel de tu Robot en GitHub. ¡Solo tienes que hacer clic en 'Run workflow' y se enviará al instante!");
+        // Redirige automáticamente a la pestaña Actions del repositorio
+        window.open("https://github.com/raulslim/Fichajes/actions", "_blank");
     }
 
     async function cerrarSesion() {
