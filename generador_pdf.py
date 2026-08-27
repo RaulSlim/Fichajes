@@ -8,6 +8,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 from supabase import create_client, Client
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 
 # 1. Configuración de variables de entorno
 url = os.environ.get("SUPABASE_URL")
@@ -40,9 +41,9 @@ print("Generando PDF...")
 class PDF(FPDF):
     def header(self):
         self.set_font('helvetica', 'B', 15)
-        self.cell(0, 10, 'Registro de Horas - Gastrobar Don Apolonio', ln=True, align='C')
+        self.cell(0, 10, 'Registro de Horas - Gastrobar Don Apolonio', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
         self.set_font('helvetica', 'I', 10)
-        self.cell(0, 10, f'Documento generado el: {datetime.now().strftime("%d/%m/%Y")}', ln=True, align='C')
+        self.cell(0, 10, f'Documento generado el: {datetime.now().strftime("%d/%m/%Y")}', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
         self.ln(5)
 
 pdf = PDF()
@@ -75,7 +76,11 @@ for f in fichajes:
     nombre_completo = f"{emp.get('nombre', '')} {emp.get('apellidos', '')}"
     dni = emp.get('dni', '-')
     
-    fecha_obj = datetime.fromisoformat(f.get('fecha_hora').replace('Z', '+00:00'))
+    # REPARACIÓN DE FECHA: Quitamos milisegundos y la Z para que Python 3.10 lo entienda
+    fecha_cruda = f.get('fecha_hora')
+    fecha_limpia = fecha_cruda.split('.')[0].split('+')[0].split('Z')[0]
+    fecha_obj = datetime.fromisoformat(fecha_limpia)
+    
     fecha_str = fecha_obj.strftime('%d/%m/%Y')
     hora_str = fecha_obj.strftime('%H:%M')
     tipo = f.get('tipo', '')
@@ -84,7 +89,6 @@ for f in fichajes:
     # Control de salto de página
     if pdf.get_y() > 260:
         pdf.add_page()
-        # Repetir cabeceras
         pdf.set_font('helvetica', 'B', 9)
         pdf.cell(w_trabajador, 10, 'Trabajador', border=1, align='C')
         pdf.cell(w_dni, 10, 'DNI', border=1, align='C')
@@ -106,17 +110,15 @@ for f in fichajes:
     pdf.cell(w_hora, alto_fila, hora_str, border=1, align='C')
     pdf.cell(w_tipo, alto_fila, tipo, border=1, align='C')
     
-    # Celda de firma (dibujamos el borde vacío y luego le metemos la imagen)
+    # Celda de firma
     pdf.cell(w_firma, alto_fila, '', border=1)
 
     if firma_b64 and "," in firma_b64:
         try:
-            # Separamos el envoltorio de la imagen real y la decodificamos
             base64_str = firma_b64.split(",")[1]
             image_bytes = base64.b64decode(base64_str)
             image_stream = io.BytesIO(image_bytes)
             
-            # Calculamos las coordenadas donde va el dibujo
             img_x = x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo + 5
             img_y = y_start + 2
             pdf.image(image_stream, x=img_x, y=img_y, w=40, h=11)
@@ -124,13 +126,11 @@ for f in fichajes:
             pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
             pdf.cell(w_firma, 5, 'Error imagen', align='C')
     else:
-        # Fichajes de entrada (sin firma)
         pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
         pdf.set_text_color(150, 150, 150)
         pdf.cell(w_firma, 5, 'Sin firma', align='C')
         pdf.set_text_color(0, 0, 0)
     
-    # Volver al inicio de la siguiente línea
     pdf.set_xy(x_start, y_start + alto_fila)
 
 pdf_ruta = "informe_fichajes.pdf"
