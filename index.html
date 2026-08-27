@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control Horario - Gastrobar Don Apolonio</title>
+    <!-- Librerías para generar PDF en la web -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
@@ -41,8 +42,6 @@
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.75rem; text-align: left; }
         th, td { border-bottom: 1px solid #e4e4e7; padding: 0.5rem 0.2rem; vertical-align: middle; }
         th { background-color: #f4f4f5; font-weight: 600; }
-        .tipo-entrada { color: #16a34a; font-weight: bold; }
-        .tipo-salida { color: #ea580c; font-weight: bold; }
         .tabla-container { max-height: 350px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
         .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -60,6 +59,7 @@
 </head>
 <body>
 
+    <!-- 1. LOGIN -->
     <div class="container pantalla" id="pantallaLogin">
         <h2>Acceso Empleados</h2>
         <p class="subtitle">Inicia sesión para registrar tu jornada</p>
@@ -71,6 +71,7 @@
         <span class="link-text" onclick="cambiarPantalla('pantallaRegistro')">¿Nuevo empleado? Regístrate aquí</span>
     </div>
 
+    <!-- 2. REGISTRO -->
     <div class="container pantalla" id="pantallaRegistro">
         <h2>Nuevo Trabajador</h2>
         <form onsubmit="crearCuenta(event)">
@@ -84,6 +85,7 @@
         </form>
     </div>
 
+    <!-- 3. PANEL PRINCIPAL TRABAJADORES -->
     <div class="container pantalla" id="pantallaFichaje">
         <h2>Hola, <span id="nombreUsuario">Usuario</span></h2>
         
@@ -106,6 +108,7 @@
         </div>
     </div>
 
+    <!-- 4. CALENDARIO MENSUAL DEL EMPLEADO -->
     <div class="container pantalla" id="pantallaCalendarioEmpleado">
         <h2>Mi Cuadrante Mensual</h2>
         <p class="subtitle" id="subtituloCuadrante">Cargando...</p>
@@ -124,6 +127,7 @@
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
 
+    <!-- VENTANAS DE FIRMAS -->
     <div class="modal-overlay" id="modalFirma">
         <div class="modal-content">
             <h2 style="font-size: 1.2rem; margin-bottom: 0;">Firma de Salida</h2>
@@ -148,14 +152,16 @@
         </div>
     </div>
 
+    <!-- MIS HORAS (Historial Agrupado) -->
     <div class="container pantalla" id="pantallaHistorial">
         <h2>Mis Fichajes</h2>
         <div class="tabla-container">
-            <table><thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaMisHoras"></tbody></table>
+            <table><thead><tr><th>Fecha</th><th>H. Entrada</th><th>H. Salida</th><th>Firma</th></tr></thead><tbody id="tablaMisHoras"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
 
+    <!-- 5. PANEL ADMIN -->
     <div class="container pantalla" id="pantallaAdmin">
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Auditoría y Horarios</p>
@@ -172,12 +178,14 @@
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem; grid-column: span 2;">✏️ CORREGIR HORAS MANUAL</button>
         </div>
 
+        <!-- TABLA ADMIN AGRUPADA -->
         <div class="tabla-container">
-            <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
+            <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>H. Entrada</th><th>H. Salida</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cerrarSesion()">Cerrar sesión</button>
     </div>
 
+    <!-- GESTIÓN DE PLANTILLA -->
     <div class="container pantalla" id="pantallaGestionPlantilla">
         <h2>Plantilla y Roles</h2>
         <p class="subtitle">Asigna los turnos a cada trabajador</p>
@@ -190,6 +198,7 @@
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
     </div>
 
+    <!-- MODAL PARA ASIGNAR ROL -->
     <div class="modal-overlay" id="modalAsignarRol">
         <div class="modal-content" style="max-width: 350px;">
             <h3 style="margin-top: 0;">Asignar Turno</h3>
@@ -217,6 +226,7 @@
         </div>
     </div>
 
+    <!-- PANEL CORRECCIÓN ADMIN -->
     <div class="container pantalla" id="pantallaCorreccionAdmin">
         <h2>Fichaje Manual</h2>
         <p class="subtitle">Inserta las horas olvidadas de un empleado</p>
@@ -241,6 +251,51 @@
     let intervaloContador = null;
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
+
+    // --- AGRUPADOR INTELIGENTE DE JORNADAS (Para juntar Entrada y Salida en una línea) ---
+    function procesarJornadas(datosRaw) {
+        // Ordenamos todos los clics de más antiguo a más nuevo
+        const datos = [...datosRaw].sort((a,b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
+        const jornadas = [];
+        const turnosAbiertos = {};
+        
+        datos.forEach(f => {
+            const esEntrada = f.tipo.includes('Entrada');
+            const esSalida = f.tipo.includes('Salida');
+            
+            if (esEntrada) {
+                // Si ya había una entrada sin cerrar, la guardamos forzosamente como "En curso"
+                if(turnosAbiertos[f.email]) jornadas.push(turnosAbiertos[f.email]);
+                
+                turnosAbiertos[f.email] = {
+                    email: f.email,
+                    entrada: f.fecha_hora,
+                    salida: null,
+                    firma: f.firma,
+                    corregida: f.tipo.includes('Corregida')
+                };
+            } else if (esSalida) {
+                if(turnosAbiertos[f.email]) {
+                    turnosAbiertos[f.email].salida = f.fecha_hora;
+                    if(f.firma) turnosAbiertos[f.email].firma = f.firma; // Guardamos la firma de la salida
+                    if(f.tipo.includes('Corregida')) turnosAbiertos[f.email].corregida = true;
+                    
+                    jornadas.push(turnosAbiertos[f.email]);
+                    turnosAbiertos[f.email] = null; // Cerramos el turno
+                } else {
+                    // Salida huérfana (Fichó salida sin haber fichado entrada)
+                    jornadas.push({ email: f.email, entrada: null, salida: f.fecha_hora, firma: f.firma, corregida: f.tipo.includes('Corregida') });
+                }
+            }
+        });
+        
+        // Volcamos las que se quedaron abiertas
+        Object.values(turnosAbiertos).forEach(j => { if(j) jornadas.push(j); });
+        
+        // Devolvemos la lista ordenada del más nuevo al más antiguo para la tabla
+        return jornadas.sort((a,b) => new Date(b.entrada || b.salida) - new Date(a.entrada || a.salida));
+    }
+
 
     function inicializarCanvas(idCanvas) {
         const canvas = document.getElementById(idCanvas);
@@ -284,100 +339,65 @@
         else cargarDatosUsuario(data.user);
     }
 
-    // --- CÁLCULO DE TURNO PARA CUALQUIER FECHA ---
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaAnclaStr, fechaEvaluada) {
         if (!cargo || !rolAsignado || !fechaAnclaStr) return null;
-
         const hoy = new Date(fechaEvaluada); hoy.setHours(0,0,0,0);
         const ancla = new Date(fechaAnclaStr); ancla.setHours(0,0,0,0);
-
         const diffTime = hoy - ancla;
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const semanasTranscurridas = Math.floor(diffDays / 7);
         const fase = Math.floor(semanasTranscurridas / 4);
-
-        const diaSemana = hoy.getDay() || 7; // 1:L, 7:D
+        const diaSemana = hoy.getDay() || 7; 
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
             let cicloActual = 'A';
-            
             const moduloFase = ((fase % 2) + 2) % 2;
             if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
             else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
 
             const horario = (numRol === 1 || numRol === 3) ? '08:30 a 18:30' : '11:30 a 21:30';
-            
             let trabaja = false;
             if (cicloActual === 'A' && diaSemana >= 1 && diaSemana <= 4) trabaja = true;
             if (cicloActual === 'B' && diaSemana >= 4 && diaSemana <= 7) trabaja = true;
 
-            return { 
-                rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, 
-                turno: trabaja ? horario : 'Libre' 
-            };
+            return { rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, turno: trabaja ? horario : 'Libre' };
         } 
         else if (cargo === 'Camarero') {
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
             const secuencia = [1, 2, 3, 5, 4];
             const idxInicial = secuencia.indexOf(numRolAsignado);
             let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
-            
             const rolActual = secuencia[idxActual];
             let turno = 'Libre';
 
-            if (rolActual === 1) { 
-                if (diaSemana >= 4 && diaSemana <= 7) turno = 'Cierre (11:30-21:30)'; 
-            } 
-            else if (rolActual === 2) { 
-                if (diaSemana === 1) turno = 'Apoyo (09:00-19:00)';
-                if (diaSemana >= 5 && diaSemana <= 7) turno = 'Apertura (08:30-18:30)';
-            } 
-            else if (rolActual === 3) { 
-                if (diaSemana === 1) turno = 'Cierre (11:30-21:30)';
-                if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) turno = 'Apoyo (09:00-19:00)';
-            } 
-            else if (rolActual === 4) { 
-                if (diaSemana === 2 || diaSemana === 3) turno = 'Cierre (11:30-21:30)';
-                if (diaSemana === 4 || diaSemana === 5) turno = 'Apoyo (09:00-19:00)';
-            } 
-            else if (rolActual === 5) { 
-                if (diaSemana >= 1 && diaSemana <= 4) turno = 'Apertura (08:30-18:30)';
-            }
+            if (rolActual === 1) { if (diaSemana >= 4 && diaSemana <= 7) turno = 'Cierre (11:30-21:30)'; } 
+            else if (rolActual === 2) { if (diaSemana === 1) turno = 'Apoyo (09:00-19:00)'; if (diaSemana >= 5 && diaSemana <= 7) turno = 'Apertura (08:30-18:30)'; } 
+            else if (rolActual === 3) { if (diaSemana === 1) turno = 'Cierre (11:30-21:30)'; if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) turno = 'Apoyo (09:00-19:00)'; } 
+            else if (rolActual === 4) { if (diaSemana === 2 || diaSemana === 3) turno = 'Cierre (11:30-21:30)'; if (diaSemana === 4 || diaSemana === 5) turno = 'Apoyo (09:00-19:00)'; } 
+            else if (rolActual === 5) { if (diaSemana >= 1 && diaSemana <= 4) turno = 'Apertura (08:30-18:30)'; }
 
-            return { 
-                rolActivo: `Rol ${rolActual}`, 
-                turno: turno 
-            };
+            return { rolActivo: `Rol ${rolActual}`, turno: turno };
         }
         return null;
     }
 
     function abrirPantallaCalendarioEmpleado() {
         const inputMes = document.getElementById('filtroMesEmpleado');
-        if (!inputMes.value) {
-            const now = new Date();
-            inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        }
-        pintarCalendarioEmpleado();
-        cambiarPantalla('pantallaCalendarioEmpleado');
+        if (!inputMes.value) { const now = new Date(); inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }
+        pintarCalendarioEmpleado(); cambiarPantalla('pantallaCalendarioEmpleado');
     }
 
     function pintarCalendarioEmpleado() {
-        const divInfo = document.getElementById('infoTurnoHoy'); 
-        const txtTurno = document.getElementById('textoTurnoHoy');
-        const subtitulo = document.getElementById('subtituloCuadrante'); 
-        const tbody = document.getElementById('tablaCalendarioSemana');
+        const divInfo = document.getElementById('infoTurnoHoy'); const txtTurno = document.getElementById('textoTurnoHoy');
+        const subtitulo = document.getElementById('subtituloCuadrante'); const tbody = document.getElementById('tablaCalendarioSemana');
         const inputMes = document.getElementById('filtroMesEmpleado');
 
         if (!datosPerfil.cargo || !datosPerfil.rol_turno || !datosPerfil.fecha_ancla) {
-            if (divInfo) divInfo.style.display = 'none'; 
-            subtitulo.textContent = 'Turno no asignado';
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>';
-            return;
+            if (divInfo) divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>'; return;
         }
 
-        // 1. Mostrar turno de HOY en la pantalla principal de fichar
         const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, new Date());
         if (infoHoy && divInfo && txtTurno) {
             divInfo.style.display = 'block';
@@ -390,40 +410,26 @@
             }
         }
 
-        // 2. Generar la lista completa de todos los días del mes elegido
         if (!inputMes.value) return;
         const [anyo, mes] = inputMes.value.split('-');
-        
         subtitulo.textContent = `${datosPerfil.cargo} - ${datosPerfil.rol_turno}`;
         
         const diasEnMes = new Date(anyo, mes, 0).getDate();
         const nombresDias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
         const hoyReal = new Date();
-        
         let htmlTabla = '';
 
         for (let dia = 1; dia <= diasEnMes; dia++) {
             const fechaEvaluada = new Date(anyo, mes - 1, dia);
             const nombreDia = nombresDias[fechaEvaluada.getDay()];
             const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, fechaEvaluada);
-            
-            const esHoy = (
-                fechaEvaluada.getDate() === hoyReal.getDate() &&
-                fechaEvaluada.getMonth() === hoyReal.getMonth() &&
-                fechaEvaluada.getFullYear() === hoyReal.getFullYear()
-            );
-
+            const esHoy = (fechaEvaluada.getDate() === hoyReal.getDate() && fechaEvaluada.getMonth() === hoyReal.getMonth() && fechaEvaluada.getFullYear() === hoyReal.getFullYear());
             const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
             const txtCol = (res && res.turno !== 'Libre') ? res.turno : '<span style="color:#9ca3af;">Día Libre</span>';
             const diaFormateado = String(dia).padStart(2, '0');
 
-            htmlTabla += `
-                <tr style="${estiloFila}">
-                    <td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '(Hoy)' : ''}</td>
-                    <td>${txtCol}</td>
-                </tr>`;
+            htmlTabla += `<tr style="${estiloFila}"><td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '(Hoy)' : ''}</td><td>${txtCol}</td></tr>`;
         }
-
         tbody.innerHTML = htmlTabla;
     }
 
@@ -435,17 +441,11 @@
             cargarPanelAdmin(); 
         } else {
             document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
-            
-            // Inicializar el mes actual en el filtro del calendario del empleado
             const inputMes = document.getElementById('filtroMesEmpleado');
             if (inputMes && !inputMes.value) {
-                const now = new Date();
-                inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const now = new Date(); inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             }
-
-            pintarCalendarioEmpleado(); 
-            await revisarCorreccionesPendientes(); 
-            cambiarPantalla('pantallaFichaje');
+            pintarCalendarioEmpleado(); await revisarCorreccionesPendientes(); cambiarPantalla('pantallaFichaje');
         }
     }
 
@@ -505,24 +505,27 @@
         const email = document.getElementById('regEmail').value;
         const { error } = await cliente.auth.signUp({ email: email, password: document.getElementById('regPass').value });
         if (error) return alert("Error: " + error.message);
-        
-        await cliente.from('empleados').insert([{ 
-            email: email, 
-            nombre: document.getElementById('regNombre').value, 
-            apellidos: document.getElementById('regApellidos').value, 
-            dni: document.getElementById('regDni').value 
-        }]);
-        
+        await cliente.from('empleados').insert([{ email: email, nombre: document.getElementById('regNombre').value, apellidos: document.getElementById('regApellidos').value, dni: document.getElementById('regDni').value }]);
         alert("Cuenta creada. Inicia sesión."); cambiarPantalla('pantallaLogin');
     }
 
+    // --- TABLAS INTELIGENTES DE HISTORIAL Y ADMIN ---
     async function cargarMisHoras() {
-        const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(20);
+        const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false });
+        const jornadas = procesarJornadas(data || []);
+        
         const tbody = document.getElementById('tablaMisHoras'); tbody.innerHTML = '';
-        if(data) data.forEach(f => {
-            const fObj = new Date(f.fecha_hora); const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
-            let visualFirma = f.firma ? `<img src="${f.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa;">Sin firma</span>`;
-            tbody.innerHTML += `<tr><td>${fObj.toLocaleDateString('es-ES')}</td><td>${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td><td class="${clase}">${f.tipo}</td><td style="text-align:center;">${visualFirma}</td></tr>`;
+        if(jornadas.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay fichajes</td></tr>'; }
+        
+        jornadas.forEach(j => {
+            const fObj = new Date(j.entrada || j.salida);
+            const strFecha = fObj.toLocaleDateString('es-ES');
+            const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
+            const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '<span style="color:#eab308;">En curso</span>';
+            const indicativo = j.corregida ? '<br><span style="font-size:0.65rem; color:#ea580c;">(Corregida)</span>' : '';
+            let visualFirma = j.firma ? `<img src="${j.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
+            
+            tbody.innerHTML += `<tr><td>${strFecha}${indicativo}</td><td>${hEnt}</td><td>${hSal}</td><td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
         });
         cambiarPantalla('pantallaHistorial');
     }
@@ -536,7 +539,23 @@
         const { data: fichajes } = await cliente.from('fichajes').select('*').gte('fecha_hora', primerDia).lte('fecha_hora', ultimoDia).order('fecha_hora', { ascending: false });
         const { data: empleados } = await cliente.from('empleados').select('*');
         const mapaEmpleados = {}; if (empleados) empleados.forEach(emp => { mapaEmpleados[emp.email] = emp; });
-        pintarTabla('tablaTodosFichajes', fichajes, true, mapaEmpleados); cambiarPantalla('pantallaAdmin');
+        
+        const jornadas = procesarJornadas(fichajes || []);
+        const tbody = document.getElementById('tablaTodosFichajes'); tbody.innerHTML = '';
+        if(jornadas.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
+        
+        jornadas.forEach(j => {
+            const emp = mapaEmpleados[j.email] || { nombre: j.email.split('@')[0], apellidos: '', dni: '-' };
+            const fObj = new Date(j.entrada || j.salida);
+            const strFecha = fObj.toLocaleDateString('es-ES');
+            const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
+            const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '<span style="color:#eab308;">En curso</span>';
+            const indicativo = j.corregida ? '<br><span style="font-size:0.65rem; color:#ea580c;">(Corregida)</span>' : '';
+            let visualFirma = j.firma ? `<img src="${j.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
+            
+            tbody.innerHTML += `<tr><td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td><td>${strFecha}${indicativo}</td><td>${hEnt}</td><td>${hSal}</td><td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
+        });
+        cambiarPantalla('pantallaAdmin');
     }
 
     async function cargarGestionPlantilla() {
@@ -568,35 +587,16 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; 
-        const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); 
-        const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); 
-        lunes.setDate(hoy.getDate() - diaSemana + 1);
+        const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
+        const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { data, error } = await cliente
-            .from('empleados')
-            .update({ 
-                cargo: cargo, 
-                rol_turno: rol, 
-                fecha_ancla: fechaAncla 
-            })
-            .eq('email', emailEmpleadoEditando)
-            .select();
-
-        if (error) {
-            alert("Error al guardar: " + error.message);
-        } else if (!data || data.length === 0) {
-            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
-        } else {
-            alert("✅ Rol y turno asignados correctamente.");
-            document.getElementById('modalAsignarRol').style.display = 'none'; 
-            cargarGestionPlantilla(); 
-        }
+        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando).select();
+        if (error) alert("Error al guardar: " + error.message);
+        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
     }
 
     async function abrirCorreccionAdmin() {
@@ -623,19 +623,6 @@
         else { alert("✅ Corrección guardada. El trabajador deberá firmarla al entrar."); cargarPanelAdmin(); }
     }
 
-    function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
-        const tbody = document.getElementById(idBody); tbody.innerHTML = '';
-        if(!datos || datos.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
-        datos.forEach(f => {
-            const fObj = new Date(f.fecha_hora); const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
-            let fila = `<tr>`;
-            if(esAdmin) { const emp = mapaEmpleados[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' }; fila += `<td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td>`; }
-            let visualFirma = f.firma ? `<img src="${f.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
-            fila += `<td>${fObj.toLocaleDateString('es-ES')}</td><td>${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td><td class="${clase}">${f.tipo}</td><td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
-            tbody.innerHTML += fila;
-        });
-    }
-
     async function descargarPDF() {
         const [anyo, mes] = document.getElementById('filtroMes').value.split('-');
         const primerDia = new Date(anyo, mes - 1, 1).toISOString(); const ultimoDia = new Date(anyo, mes, 0, 23, 59, 59, 999).toISOString();
@@ -646,18 +633,27 @@
         const { data: fichajes } = await cliente.from('fichajes').select('*').gte('fecha_hora', primerDia).lte('fecha_hora', ultimoDia).order('fecha_hora', { ascending: true });
         const { data: empleados } = await cliente.from('empleados').select('*');
         if(!fichajes || fichajes.length === 0) return alert("No hay datos en este mes para exportar.");
+        
         const mapa = {}; if (empleados) empleados.forEach(e => mapa[e.email] = e);
+        const jornadas = procesarJornadas(fichajes); // Agrupamos para el PDF
+        
         const filas = []; const firmasBase64 = [];
-
-        fichajes.forEach(f => {
-            const emp = mapa[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' };
-            const fObj = new Date(f.fecha_hora);
-            filas.push([`${emp.nombre} ${emp.apellidos}`, emp.dni, fObj.toLocaleDateString('es-ES'), fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}), f.tipo, ""]);
-            firmasBase64.push(f.firma || null);
+        jornadas.forEach(j => {
+            const emp = mapa[j.email] || { nombre: j.email.split('@')[0], apellidos: '', dni: '-' };
+            const fObj = new Date(j.entrada || j.salida);
+            const strFecha = fObj.toLocaleDateString('es-ES');
+            const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
+            const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : 'En curso';
+            
+            // Si es corregida, le añadimos un (C) pequeñito a la fecha
+            const fechaPdf = j.corregida ? strFecha + ' (C)' : strFecha;
+            
+            filas.push([`${emp.nombre} ${emp.apellidos}`, emp.dni, fechaPdf, hEnt, hSal, ""]);
+            firmasBase64.push(j.firma || null);
         });
 
         doc.autoTable({
-            startY: 30, head: [['Trabajador', 'DNI', 'Fecha', 'Hora', 'Tipo', 'Firma']], body: filas,
+            startY: 30, head: [['Trabajador', 'DNI', 'Fecha', 'Entrada', 'Salida', 'Firma']], body: filas,
             styles: { valign: 'middle', fontSize: 8 }, headStyles: { fillColor: [24, 24, 27] }, columnStyles: { 5: { cellWidth: 35, minCellHeight: 15 } }, 
             didDrawCell: function(data) {
                 if (data.column.index === 5 && data.cell.section === 'body') {
