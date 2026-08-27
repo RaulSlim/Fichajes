@@ -97,7 +97,7 @@
         <div class="actions">
             <button id="btnEntrada" class="btn btn-entrada" onclick="procesarFichaje('Entrada')">🟢 FICHAJE DE ENTRADA</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="abrirModalFirma()">🔴 FINALIZAR TURNO</button>
-            <button class="btn btn-info" onclick="cambiarPantalla('pantallaCalendarioEmpleado')">📅 MI CALENDARIO SEMANAL</button>
+            <button class="btn btn-info" onclick="abrirPantallaCalendarioEmpleado()">📅 MI CALENDARIO MENSUAL</button>
         </div>
         
         <div class="nav-links">
@@ -107,11 +107,17 @@
     </div>
 
     <div class="container pantalla" id="pantallaCalendarioEmpleado">
-        <h2>Mi Cuadrante</h2>
+        <h2>Mi Cuadrante Mensual</h2>
         <p class="subtitle" id="subtituloCuadrante">Cargando...</p>
-        <div class="tabla-container">
+        
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="text-align: center; color: #71717a;">Selecciona el mes a consultar:</label>
+            <input type="month" id="filtroMesEmpleado" onchange="pintarCalendarioEmpleado()" style="text-align: center; font-weight: bold;">
+        </div>
+
+        <div class="tabla-container" style="max-height: 380px;">
             <table style="font-size: 0.85rem; margin-top: 0;">
-                <thead><tr><th>Día</th><th>Turno asignado</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Turno asignado</th></tr></thead>
                 <tbody id="tablaCalendarioSemana"></tbody>
             </table>
         </div>
@@ -278,92 +284,168 @@
         else cargarDatosUsuario(data.user);
     }
 
-    function calcularTurno(cargo, rolAsignado, fechaAnclaStr) {
+    // --- CÁLCULO DE TURNO PARA CUALQUIER FECHA ---
+    function calcularTurnoParaFecha(cargo, rolAsignado, fechaAnclaStr, fechaEvaluada) {
         if (!cargo || !rolAsignado || !fechaAnclaStr) return null;
-        const hoy = new Date(); const ancla = new Date(fechaAnclaStr);
-        ancla.setHours(0,0,0,0); hoy.setHours(0,0,0,0);
-        const diffTime = hoy - ancla; const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        const semanasTranscurridas = Math.floor(diffDays / 7); const fase = Math.floor(semanasTranscurridas / 4);
 
-        let turnoHoy = "Libre"; let semanaStr = []; const diaSemana = hoy.getDay() || 7;
+        const hoy = new Date(fechaEvaluada); hoy.setHours(0,0,0,0);
+        const ancla = new Date(fechaAnclaStr); ancla.setHours(0,0,0,0);
+
+        const diffTime = hoy - ancla;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const semanasTranscurridas = Math.floor(diffDays / 7);
+        const fase = Math.floor(semanasTranscurridas / 4);
+
+        const diaSemana = hoy.getDay() || 7; // 1:L, 7:D
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
             let cicloActual = 'A';
-            if (numRol === 1 || numRol === 2) { cicloActual = (fase % 2 === 0) ? 'A' : 'B'; } 
-            else if (numRol === 3 || numRol === 4) { cicloActual = (fase % 2 === 0) ? 'B' : 'A'; }
+            
+            const moduloFase = ((fase % 2) + 2) % 2;
+            if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
+            else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
+
             const horario = (numRol === 1 || numRol === 3) ? '08:30 a 18:30' : '11:30 a 21:30';
-            for (let i=1; i<=7; i++) {
-                let trabaja = false;
-                if (cicloActual === 'A' && i >= 1 && i <= 4) trabaja = true;
-                if (cicloActual === 'B' && i >= 4 && i <= 7) trabaja = true;
-                semanaStr.push(trabaja ? horario : 'Libre');
-            }
-            turnoHoy = semanaStr[diaSemana - 1];
-            return { rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, turnoHoy: turnoHoy, calendario: semanaStr };
+            
+            let trabaja = false;
+            if (cicloActual === 'A' && diaSemana >= 1 && diaSemana <= 4) trabaja = true;
+            if (cicloActual === 'B' && diaSemana >= 4 && diaSemana <= 7) trabaja = true;
+
+            return { 
+                rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, 
+                turno: trabaja ? horario : 'Libre' 
+            };
         } 
         else if (cargo === 'Camarero') {
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
             const secuencia = [1, 2, 3, 5, 4];
             const idxInicial = secuencia.indexOf(numRolAsignado);
-            let idxActual = (idxInicial + fase) % 5;
-            if (idxActual < 0) idxActual = 0;
+            let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
+            
             const rolActual = secuencia[idxActual];
-            let l='Libre', m='Libre', x='Libre', j='Libre', v='Libre', s='Libre', d='Libre';
+            let turno = 'Libre';
 
-            if (rolActual === 1) { j = 'Cierre (11:30-21:30)'; v = 'Cierre (11:30-21:30)'; s = 'Cierre (11:30-21:30)'; d = 'Cierre (11:30-21:30)'; } 
-            else if (rolActual === 2) { l = 'Apoyo (09:00-19:00)'; v = 'Apertura (08:30-18:30)'; s = 'Apertura (08:30-18:30)'; d = 'Apertura (08:30-18:30)'; } 
-            else if (rolActual === 3) { l = 'Cierre (11:30-21:30)'; m = 'Apoyo (09:00-19:00)'; s = 'Apoyo (09:00-19:00)'; d = 'Apoyo (09:00-19:00)'; } 
-            else if (rolActual === 4) { m = 'Cierre (11:30-21:30)'; x = 'Cierre (11:30-21:30)'; j = 'Apoyo (09:00-19:00)'; v = 'Apoyo (09:00-19:00)'; } 
-            else if (rolActual === 5) { l = 'Apertura (08:30-18:30)'; m = 'Apertura (08:30-18:30)'; x = 'Apertura (08:30-18:30)'; j = 'Apertura (08:30-18:30)'; }
+            if (rolActual === 1) { 
+                if (diaSemana >= 4 && diaSemana <= 7) turno = 'Cierre (11:30-21:30)'; 
+            } 
+            else if (rolActual === 2) { 
+                if (diaSemana === 1) turno = 'Apoyo (09:00-19:00)';
+                if (diaSemana >= 5 && diaSemana <= 7) turno = 'Apertura (08:30-18:30)';
+            } 
+            else if (rolActual === 3) { 
+                if (diaSemana === 1) turno = 'Cierre (11:30-21:30)';
+                if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) turno = 'Apoyo (09:00-19:00)';
+            } 
+            else if (rolActual === 4) { 
+                if (diaSemana === 2 || diaSemana === 3) turno = 'Cierre (11:30-21:30)';
+                if (diaSemana === 4 || diaSemana === 5) turno = 'Apoyo (09:00-19:00)';
+            } 
+            else if (rolActual === 5) { 
+                if (diaSemana >= 1 && diaSemana <= 4) turno = 'Apertura (08:30-18:30)';
+            }
 
-            semanaStr = [l, m, x, j, v, s, d];
-            turnoHoy = semanaStr[diaSemana - 1];
-            return { rolActivo: `Rol ${rolActual}`, turnoHoy: turnoHoy, calendario: semanaStr };
+            return { 
+                rolActivo: `Rol ${rolActual}`, 
+                turno: turno 
+            };
         }
         return null;
     }
 
+    function abrirPantallaCalendarioEmpleado() {
+        const inputMes = document.getElementById('filtroMesEmpleado');
+        if (!inputMes.value) {
+            const now = new Date();
+            inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+        pintarCalendarioEmpleado();
+        cambiarPantalla('pantallaCalendarioEmpleado');
+    }
+
     function pintarCalendarioEmpleado() {
-        const divInfo = document.getElementById('infoTurnoHoy'); const txtTurno = document.getElementById('textoTurnoHoy');
-        const subtitulo = document.getElementById('subtituloCuadrante'); const tbody = document.getElementById('tablaCalendarioSemana');
+        const divInfo = document.getElementById('infoTurnoHoy'); 
+        const txtTurno = document.getElementById('textoTurnoHoy');
+        const subtitulo = document.getElementById('subtituloCuadrante'); 
+        const tbody = document.getElementById('tablaCalendarioSemana');
+        const inputMes = document.getElementById('filtroMesEmpleado');
 
         if (!datosPerfil.cargo || !datosPerfil.rol_turno || !datosPerfil.fecha_ancla) {
-            divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
+            if (divInfo) divInfo.style.display = 'none'; 
+            subtitulo.textContent = 'Turno no asignado';
             tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>';
             return;
         }
 
-        const info = calcularTurno(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla);
-        if (info) {
-            divInfo.style.display = 'block'; subtitulo.textContent = `${datosPerfil.cargo} - ${info.rolActivo}`;
-            if (info.turnoHoy === 'Libre') {
+        // 1. Mostrar turno de HOY en la pantalla principal de fichar
+        const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, new Date());
+        if (infoHoy && divInfo && txtTurno) {
+            divInfo.style.display = 'block';
+            if (infoHoy.turno === 'Libre') {
                 divInfo.style.background = '#f1f5f9'; divInfo.style.borderColor = '#cbd5e1'; divInfo.style.color = '#475569';
                 txtTurno.innerHTML = '<strong>Hoy tienes Día Libre 🏖️</strong>';
             } else {
                 divInfo.style.background = '#f0fdf4'; divInfo.style.borderColor = '#bbf7d0'; divInfo.style.color = '#166534';
-                txtTurno.innerHTML = `Turno de hoy: <strong>${info.turnoHoy}</strong>`;
+                txtTurno.innerHTML = `Turno de hoy: <strong>${infoHoy.turno}</strong>`;
             }
-            const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-            let htmlTabla = ''; const hoy = new Date(); const diaSemanaHoy = hoy.getDay() || 7;
-            for(let i=0; i<7; i++) {
-                const esHoy = (i + 1 === diaSemanaHoy);
-                const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
-                const txtCol = info.calendario[i] === 'Libre' ? '<span style="color:#9ca3af;">Día Libre</span>' : info.calendario[i];
-                htmlTabla += `<tr style="${estiloFila}"><td>${dias[i]} ${esHoy ? '(Hoy)' : ''}</td><td>${txtCol}</td></tr>`;
-            }
-            tbody.innerHTML = htmlTabla;
         }
+
+        // 2. Generar la lista completa de todos los días del mes elegido
+        if (!inputMes.value) return;
+        const [anyo, mes] = inputMes.value.split('-');
+        
+        subtitulo.textContent = `${datosPerfil.cargo} - ${datosPerfil.rol_turno}`;
+        
+        const diasEnMes = new Date(anyo, mes, 0).getDate();
+        const nombresDias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const hoyReal = new Date();
+        
+        let htmlTabla = '';
+
+        for (let dia = 1; dia <= diasEnMes; dia++) {
+            const fechaEvaluada = new Date(anyo, mes - 1, dia);
+            const nombreDia = nombresDias[fechaEvaluada.getDay()];
+            const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, fechaEvaluada);
+            
+            const esHoy = (
+                fechaEvaluada.getDate() === hoyReal.getDate() &&
+                fechaEvaluada.getMonth() === hoyReal.getMonth() &&
+                fechaEvaluada.getFullYear() === hoyReal.getFullYear()
+            );
+
+            const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
+            const txtCol = (res && res.turno !== 'Libre') ? res.turno : '<span style="color:#9ca3af;">Día Libre</span>';
+            const diaFormateado = String(dia).padStart(2, '0');
+
+            htmlTabla += `
+                <tr style="${estiloFila}">
+                    <td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '(Hoy)' : ''}</td>
+                    <td>${txtCol}</td>
+                </tr>`;
+        }
+
+        tbody.innerHTML = htmlTabla;
     }
 
     async function cargarDatosUsuario(user) {
         usuarioActual = user;
         const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null, fecha_ancla: null };
-        if (datosPerfil.es_admin) { cargarPanelAdmin(); } 
-        else {
+        if (datosPerfil.es_admin) { 
+            cargarPanelAdmin(); 
+        } else {
             document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
-            pintarCalendarioEmpleado(); await revisarCorreccionesPendientes(); cambiarPantalla('pantallaFichaje');
+            
+            // Inicializar el mes actual en el filtro del calendario del empleado
+            const inputMes = document.getElementById('filtroMesEmpleado');
+            if (inputMes && !inputMes.value) {
+                const now = new Date();
+                inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+
+            pintarCalendarioEmpleado(); 
+            await revisarCorreccionesPendientes(); 
+            cambiarPantalla('pantallaFichaje');
         }
     }
 
@@ -485,7 +567,6 @@
         else if (cargo === 'Camarero') { for(let i=1; i<=5; i++) selectRol.innerHTML += `<option value="Rol ${i}">Rol ${i}</option>`; }
     }
 
-    // --- FUNCIÓN ACTUALIZADA CON AVISOS CLAROS DE ERROR/ÉXITO ---
     async function guardarRolEmpleado() {
         const cargo = document.getElementById('selectCargo').value; 
         const rol = document.getElementById('selectRol').value;
