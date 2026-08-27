@@ -26,7 +26,6 @@ supabase: Client = create_client(url, key)
 
 # 2. FILTRO INTELIGENTE DE FECHAS
 hoy = datetime.now()
-# Si estamos a principio de mes (días 1 al 5), cogemos el mes anterior. Si no, el actual.
 if hoy.day <= 5:
     mes_calculo = hoy.month - 1 if hoy.month > 1 else 12
     año_calculo = hoy.year if hoy.month > 1 else hoy.year - 1
@@ -56,7 +55,51 @@ mapa_empleados = {}
 for emp in empleados:
     mapa_empleados[emp['email']] = emp
 
-# 4. Generar PDF
+# 4. ALGORITMO AGRUPADOR DE JORNADAS
+def procesar_jornadas(lista_fichajes):
+    turnos_abiertos = {}
+    jornadas = []
+    
+    for f in lista_fichajes:
+        email = f.get('email', '')
+        tipo = f.get('tipo', '')
+        fecha_hora = f.get('fecha_hora')
+        firma = f.get('firma')
+        es_corregida = 'Corregida' in tipo
+        
+        if 'Entrada' in tipo:
+            if email in turnos_abiertos and turnos_abiertos[email] is not None:
+                jornadas.append(turnos_abiertos[email])
+            turnos_abiertos[email] = {
+                'email': email, 'entrada': fecha_hora, 'salida': None, 
+                'firma': firma, 'es_corregida': es_corregida
+            }
+        elif 'Salida' in tipo:
+            if email in turnos_abiertos and turnos_abiertos[email] is not None:
+                turnos_abiertos[email]['salida'] = fecha_hora
+                if firma: turnos_abiertos[email]['firma'] = firma
+                if es_corregida: turnos_abiertos[email]['es_corregida'] = True
+                jornadas.append(turnos_abiertos[email])
+                turnos_abiertos[email] = None
+            else:
+                jornadas.append({
+                    'email': email, 'entrada': None, 'salida': fecha_hora, 
+                    'firma': firma, 'es_corregida': es_corregida
+                })
+                
+    for email, turno in turnos_abiertos.items():
+        if turno is not None:
+            jornadas.append(turno)
+            
+    def get_date(j):
+        return j['entrada'] if j['entrada'] else j['salida']
+        
+    jornadas.sort(key=get_date)
+    return jornadas
+
+jornadas_procesadas = procesar_jornadas(fichajes)
+
+# 5. Generar PDF
 print("Generando PDF...")
 class PDF(FPDF):
     def header(self):
@@ -72,37 +115,41 @@ pdf.add_page()
 w_trabajador = 45
 w_dni = 20
 w_fecha = 20
-w_hora = 15
-w_tipo = 40
+w_entrada = 15
+w_salida = 15
 w_firma = 50
 alto_fila = 15
 
 pdf.set_font('helvetica', 'B', 9)
-for titulo, ancho in [('Trabajador', w_trabajador), ('DNI', w_dni), ('Fecha', w_fecha), ('Hora', w_hora), ('Tipo', w_tipo), ('Firma', w_firma)]:
+for titulo, ancho in [('Trabajador', w_trabajador), ('DNI', w_dni), ('Fecha', w_fecha), ('Entrada', w_entrada), ('Salida', w_salida), ('Firma', w_firma)]:
     pdf.cell(ancho, 10, titulo, border=1, align='C')
 pdf.ln()
 
 pdf.set_font('helvetica', '', 8)
 
-for f in fichajes:
-    email = f.get('email', '')
+for j in jornadas_procesadas:
+    email = j.get('email', '')
     emp = mapa_empleados.get(email, {'nombre': email.split('@')[0], 'apellidos': '', 'dni': '-'})
     nombre_completo = f"{emp.get('nombre', '')} {emp.get('apellidos', '')}"
     dni = emp.get('dni', '-')
     
-    fecha_cruda = f.get('fecha_hora')
-    fecha_limpia = fecha_cruda.split('.')[0].split('+')[0].split('Z')[0]
-    fecha_obj = datetime.fromisoformat(fecha_limpia)
+    # Manejar fechas y horas limpias
+    fecha_cruda = j['entrada'] if j['entrada'] else j['salida']
+    fecha_obj = datetime.fromisoformat(fecha_cruda.split('.')[0].split('+')[0].split('Z')[0])
     
     fecha_str = fecha_obj.strftime('%d/%m/%Y')
-    hora_str = fecha_obj.strftime('%H:%M')
-    tipo = f.get('tipo', '')
-    firma_b64 = f.get('firma', None)
+    if j.get('es_corregida'):
+        fecha_str += " (C)"  # Marca visual de que fue añadida a mano
+        
+    h_ent = datetime.fromisoformat(j['entrada'].split('.')[0].split('+')[0].split('Z')[0]).strftime('%H:%M') if j['entrada'] else '--:--'
+    h_sal = datetime.fromisoformat(j['salida'].split('.')[0].split('+')[0].split('Z')[0]).strftime('%H:%M') if j['salida'] else 'En curso'
+    
+    firma_b64 = j.get('firma')
 
     if pdf.get_y() > 260:
         pdf.add_page()
         pdf.set_font('helvetica', 'B', 9)
-        for titulo, ancho in [('Trabajador', w_trabajador), ('DNI', w_dni), ('Fecha', w_fecha), ('Hora', w_hora), ('Tipo', w_tipo), ('Firma', w_firma)]:
+        for titulo, ancho in [('Trabajador', w_trabajador), ('DNI', w_dni), ('Fecha', w_fecha), ('Entrada', w_entrada), ('Salida', w_salida), ('Firma', w_firma)]:
             pdf.cell(ancho, 10, titulo, border=1, align='C')
         pdf.ln()
         pdf.set_font('helvetica', '', 8)
@@ -113,8 +160,8 @@ for f in fichajes:
     pdf.cell(w_trabajador, alto_fila, nombre_completo[:25], border=1, align='C')
     pdf.cell(w_dni, alto_fila, dni, border=1, align='C')
     pdf.cell(w_fecha, alto_fila, fecha_str, border=1, align='C')
-    pdf.cell(w_hora, alto_fila, hora_str, border=1, align='C')
-    pdf.cell(w_tipo, alto_fila, tipo, border=1, align='C')
+    pdf.cell(w_entrada, alto_fila, h_ent, border=1, align='C')
+    pdf.cell(w_salida, alto_fila, h_sal, border=1, align='C')
     pdf.cell(w_firma, alto_fila, '', border=1)
 
     if firma_b64 and "," in firma_b64:
@@ -123,14 +170,14 @@ for f in fichajes:
             image_bytes = base64.b64decode(base64_str)
             image_stream = io.BytesIO(image_bytes)
             
-            img_x = x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo + 5
+            img_x = x_start + w_trabajador + w_dni + w_fecha + w_entrada + w_salida + 5
             img_y = y_start + 2
             pdf.image(image_stream, x=img_x, y=img_y, w=40, h=11)
         except:
-            pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
+            pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_entrada + w_salida, y_start + 5)
             pdf.cell(w_firma, 5, 'Error', align='C')
     else:
-        pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
+        pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_entrada + w_salida, y_start + 5)
         pdf.set_text_color(150, 150, 150)
         pdf.cell(w_firma, 5, 'Sin firma', align='C')
         pdf.set_text_color(0, 0, 0)
@@ -140,14 +187,14 @@ for f in fichajes:
 pdf_ruta = "informe_fichajes.pdf"
 pdf.output(pdf_ruta)
 
-# 5. Enviar Correo
+# 6. Enviar Correo
 print("Enviando correo...")
 mensaje = MIMEMultipart()
 mensaje['From'] = mi_correo
 mensaje['To'] = correo_gestor
 mensaje['Subject'] = f"Registro de Horas - {mes_calculo:02d}/{año_calculo}"
 
-cuerpo = f"Hola,\n\nAdjunto el registro de horas y firmas de la plantilla correspondiente al periodo {mes_calculo:02d}/{año_calculo}.\n\nUn saludo."
+cuerpo = f"Hola,\n\nAdjunto el registro de horas agrupadas y firmas de la plantilla correspondiente al periodo {mes_calculo:02d}/{año_calculo}.\n\nUn saludo."
 mensaje.attach(MIMEText(cuerpo, 'plain'))
 
 with open(pdf_ruta, "rb") as adjunto:
