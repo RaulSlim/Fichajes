@@ -1,109 +1,164 @@
 import os
-import calendar
 import smtplib
-from datetime import datetime, timedelta
-from email.message import EmailMessage
+import base64
+import io
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
+from datetime import datetime
 from supabase import create_client, Client
 from fpdf import FPDF
 
-# 1. RECUPERAR LAS CLAVES DESDE GITHUB SECRETS
+# 1. Configuración de variables de entorno
 url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_KEY")
-correo_origen = os.environ.get("MI_CORREO")
-password_origen = os.environ.get("MI_PASSWORD_CORREO")
-correo_destino = os.environ.get("CORREO_GESTOR")
+correo_gestor = os.environ.get("CORREO_GESTOR")
+mi_correo = os.environ.get("MI_CORREO")
+mi_password = os.environ.get("MI_PASSWORD_CORREO")
 
-if not all([url, key, correo_origen, password_origen, correo_destino]):
-    raise ValueError("Faltan variables de entorno por configurar en GitHub Secrets.")
+if not all([url, key, correo_gestor, mi_correo, mi_password]):
+    print("Error: Faltan variables de entorno.")
+    exit(1)
 
 supabase: Client = create_client(url, key)
 
-# 2. CALCULAR RANGO DE FECHAS (Mes actual si es prueba, mes anterior si es automático el día 1)
-hoy = datetime.today()
-if hoy.day == 1:
-    ultimo_dia = hoy.replace(hour=23, minute=59, second=59) - timedelta(days=1)
-    primer_dia = ultimo_dia.replace(day=1, hour=0, minute=0, second=0)
-else:
-    primer_dia = hoy.replace(day=1, hour=0, minute=0, second=0)
-    _, dias_mes = calendar.monthrange(hoy.year, hoy.month)
-    ultimo_dia = hoy.replace(day=dias_mes, hour=23, minute=59, second=59)
-
-mes_texto = primer_dia.strftime("%m/%Y")
-
-# 3. DESCARGAR DATOS DE SUPABASE
+# 2. Obtener datos de Supabase
+print("Descargando datos...")
 res_empleados = supabase.table('empleados').select('*').execute()
-empleados_dict = {emp['email']: emp for emp in res_empleados.data}
+empleados = res_empleados.data
 
-res_fichajes = supabase.table('fichajes').select('*') \
-    .gte('fecha_hora', primer_dia.isoformat()) \
-    .lte('fecha_hora', ultimo_dia.isoformat()) \
-    .order('fecha_hora').execute()
+res_fichajes = supabase.table('fichajes').select('*').order('fecha_hora').execute()
+fichajes = res_fichajes.data
 
-fichajes_por_empleado = {}
-for f in res_fichajes.data:
-    email = f['email']
-    if email not in fichajes_por_empleado:
-        fichajes_por_empleado[email] = []
-    fichajes_por_empleado[email].append(f)
+# Diccionario para cruzar email -> datos empleado
+mapa_empleados = {}
+for emp in empleados:
+    mapa_empleados[emp['email']] = emp
 
-# 4. GENERAR EL PDF
-class GeneradorPDF(FPDF):
+# 3. Generar PDF
+print("Generando PDF...")
+class PDF(FPDF):
     def header(self):
-        self.set_font('helvetica', 'B', 14)
-        self.cell(0, 10, 'REGISTRO DE JORNADA LABORAL', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.set_font('helvetica', 'B', 15)
+        self.cell(0, 10, 'Registro de Horas - Gastrobar Don Apolonio', ln=True, align='C')
+        self.set_font('helvetica', 'I', 10)
+        self.cell(0, 10, f'Documento generado el: {datetime.now().strftime("%d/%m/%Y")}', ln=True, align='C')
         self.ln(5)
 
-pdf = GeneradorPDF()
+pdf = PDF()
+pdf.add_page()
 
-for email, registros in fichajes_por_empleado.items():
-    pdf.add_page()
-    perfil = empleados_dict.get(email, {})
-    nombre_completo = f"{perfil.get('nombre', 'Desconocido')} {perfil.get('apellidos', '')}"
-    dni = perfil.get('dni', 'SIN DNI')
+# Anchos de columnas
+w_trabajador = 45
+w_dni = 20
+w_fecha = 20
+w_hora = 15
+w_tipo = 40
+w_firma = 50
+alto_fila = 15
+
+# Cabeceras
+pdf.set_font('helvetica', 'B', 9)
+pdf.cell(w_trabajador, 10, 'Trabajador', border=1, align='C')
+pdf.cell(w_dni, 10, 'DNI', border=1, align='C')
+pdf.cell(w_fecha, 10, 'Fecha', border=1, align='C')
+pdf.cell(w_hora, 10, 'Hora', border=1, align='C')
+pdf.cell(w_tipo, 10, 'Tipo', border=1, align='C')
+pdf.cell(w_firma, 10, 'Firma', border=1, align='C')
+pdf.ln()
+
+pdf.set_font('helvetica', '', 8)
+
+for f in fichajes:
+    email = f.get('email', '')
+    emp = mapa_empleados.get(email, {'nombre': email.split('@')[0], 'apellidos': '', 'dni': '-'})
+    nombre_completo = f"{emp.get('nombre', '')} {emp.get('apellidos', '')}"
+    dni = emp.get('dni', '-')
     
-    pdf.set_font("helvetica", "B", 11)
-    pdf.cell(0, 8, f"Mes / Año: {mes_texto}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 8, f"Trabajador: {nombre_completo}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 8, f"DNI / NIE: {dni}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
+    fecha_obj = datetime.fromisoformat(f.get('fecha_hora').replace('Z', '+00:00'))
+    fecha_str = fecha_obj.strftime('%d/%m/%Y')
+    hora_str = fecha_obj.strftime('%H:%M')
+    tipo = f.get('tipo', '')
+    firma_b64 = f.get('firma', None)
+
+    # Control de salto de página
+    if pdf.get_y() > 260:
+        pdf.add_page()
+        # Repetir cabeceras
+        pdf.set_font('helvetica', 'B', 9)
+        pdf.cell(w_trabajador, 10, 'Trabajador', border=1, align='C')
+        pdf.cell(w_dni, 10, 'DNI', border=1, align='C')
+        pdf.cell(w_fecha, 10, 'Fecha', border=1, align='C')
+        pdf.cell(w_hora, 10, 'Hora', border=1, align='C')
+        pdf.cell(w_tipo, 10, 'Tipo', border=1, align='C')
+        pdf.cell(w_firma, 10, 'Firma', border=1, align='C')
+        pdf.ln()
+        pdf.set_font('helvetica', '', 8)
+
+    # Guardar posiciones X e Y actuales para alinear la imagen
+    x_start = pdf.get_x()
+    y_start = pdf.get_y()
+
+    # Celdas de texto
+    pdf.cell(w_trabajador, alto_fila, nombre_completo[:25], border=1, align='C')
+    pdf.cell(w_dni, alto_fila, dni, border=1, align='C')
+    pdf.cell(w_fecha, alto_fila, fecha_str, border=1, align='C')
+    pdf.cell(w_hora, alto_fila, hora_str, border=1, align='C')
+    pdf.cell(w_tipo, alto_fila, tipo, border=1, align='C')
     
-    pdf.set_font("helvetica", "B", 10)
-    pdf.cell(40, 10, "Fecha", border=1, align="C")
-    pdf.cell(40, 10, "Tipo", border=1, align="C")
-    pdf.cell(40, 10, "Hora (Local)", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
+    # Celda de firma (dibujamos el borde vacío y luego le metemos la imagen)
+    pdf.cell(w_firma, alto_fila, '', border=1)
+
+    if firma_b64 and "," in firma_b64:
+        try:
+            # Separamos el envoltorio de la imagen real y la decodificamos
+            base64_str = firma_b64.split(",")[1]
+            image_bytes = base64.b64decode(base64_str)
+            image_stream = io.BytesIO(image_bytes)
+            
+            # Calculamos las coordenadas donde va el dibujo
+            img_x = x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo + 5
+            img_y = y_start + 2
+            pdf.image(image_stream, x=img_x, y=img_y, w=40, h=11)
+        except Exception as e:
+            pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
+            pdf.cell(w_firma, 5, 'Error imagen', align='C')
+    else:
+        # Fichajes de entrada (sin firma)
+        pdf.set_xy(x_start + w_trabajador + w_dni + w_fecha + w_hora + w_tipo, y_start + 5)
+        pdf.set_text_color(150, 150, 150)
+        pdf.cell(w_firma, 5, 'Sin firma', align='C')
+        pdf.set_text_color(0, 0, 0)
     
-    pdf.set_font("helvetica", "", 10)
-    for reg in registros:
-        fecha_obj = datetime.fromisoformat(reg['fecha_hora'].replace("Z", "+00:00"))
-        # Ajustar hora UTC a hora de España (aprox +1/+2 según horario de verano, aquí simplificado para el PDF)
-        str_fecha = fecha_obj.strftime("%d/%m/%Y")
-        str_hora = fecha_obj.strftime("%H:%M:%S")
-        
-        pdf.cell(40, 10, str_fecha, border=1, align="C")
-        pdf.cell(40, 10, reg['tipo'].upper(), border=1, align="C")
-        pdf.cell(40, 10, str_hora, border=1, align="C", new_x="LMARGIN", new_y="NEXT")
-        
-    pdf.ln(10)
-    pdf.set_font("helvetica", "I", 9)
-    pdf.cell(0, 10, "Firma del trabajador: ___________________________", new_x="LMARGIN", new_y="NEXT")
+    # Volver al inicio de la siguiente línea
+    pdf.set_xy(x_start, y_start + alto_fila)
 
-ruta_pdf = "registro_mensual.pdf"
-pdf.output(ruta_pdf)
+pdf_ruta = "informe_fichajes.pdf"
+pdf.output(pdf_ruta)
+print("PDF generado con éxito.")
 
-# 5. ENVIAR EL CORREO A TRAVÉS DE GMAIL
-msg = EmailMessage()
-msg['Subject'] = f'Registros de Jornada - {mes_texto}'
-msg['From'] = correo_origen
-msg['To'] = correo_destino
-msg.set_content('Buenos días,\n\nSe adjunta el documento PDF con los registros de jornada legal.\n\nEste es un mensaje automático.')
+# 4. Enviar Correo
+print("Enviando correo...")
+mensaje = MIMEMultipart()
+mensaje['From'] = mi_correo
+mensaje['To'] = correo_gestor
+mensaje['Subject'] = f"Registro de Horas - {datetime.now().strftime('%B %Y')}"
 
-with open(ruta_pdf, 'rb') as f:
-    msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename=f'Registro_{mes_texto.replace("/", "_")}.pdf')
+cuerpo = f"Hola,\n\nAdjunto el registro mensual de horas, entradas, salidas y firmas de los trabajadores.\n\nUn saludo."
+mensaje.attach(MIMEText(cuerpo, 'plain'))
+
+with open(pdf_ruta, "rb") as adjunto:
+    parte = MIMEApplication(adjunto.read(), Name=os.path.basename(pdf_ruta))
+    parte['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_ruta)}"'
+    mensaje.attach(parte)
 
 try:
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(correo_origen, password_origen)
-        smtp.send_message(msg)
-    print("¡Proceso completado! PDF generado y enviado con éxito a través de Gmail.")
+    servidor = smtplib.SMTP('smtp.gmail.com', 587)
+    servidor.starttls()
+    servidor.login(mi_correo, mi_password)
+    servidor.send_message(mensaje)
+    servidor.quit()
+    print("¡Correo enviado correctamente al gestor!")
 except Exception as e:
     print(f"Error al enviar el correo: {e}")
+    exit(1)
