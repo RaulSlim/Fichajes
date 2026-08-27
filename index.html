@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control Horario</title>
+    <!-- Librerías para generar PDF en la web -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
     <style>
         * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
         body { background-color: #f4f4f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; color: #18181b; padding: 1rem; }
         
-        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 500px; text-align: center; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 550px; text-align: center; }
         h2 { margin-top: 0; margin-bottom: 0.5rem; }
         p.subtitle { color: #71717a; margin-bottom: 1.5rem; font-size: 0.9rem; }
         
@@ -125,11 +129,11 @@
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Gestión y Exportación</p>
         <div class="actions" style="margin-top:0; margin-bottom: 1rem; flex-direction: row; display: grid;">
-            <button class="btn btn-entrada" onclick="exportarCSV()" style="margin:0; font-size: 0.85rem;">📥 EXPORTAR CSV</button>
+            <!-- BOTÓN CAMBIADO A DESCARGAR PDF -->
+            <button class="btn btn-entrada" onclick="descargarPDF()" style="margin:0; font-size: 0.85rem;">📄 DESCARGAR PDF</button>
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
         </div>
         <div class="tabla-container">
-            <!-- AHORA MUESTRA TRABAJADOR Y DNI EN VEZ DE EMAIL -->
             <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver al inicio</button>
@@ -270,21 +274,15 @@
 
     async function cargarMisHoras() {
         const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(20);
-        pintarTabla('tablaMisHoras', data, false, {}); // Para la tabla personal no hace falta cruzar datos
+        pintarTabla('tablaMisHoras', data, false, {}); 
         cambiarPantalla('pantallaHistorial');
     }
 
-    // AHORA CARGAMOS TAMBIÉN LOS EMPLEADOS PARA CRUZAR DATOS EN ADMIN
     async function cargarPanelAdmin() {
         const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: false }).limit(100);
         const { data: empleados } = await cliente.from('empleados').select('*');
-        
-        // Creamos un "diccionario" de correos -> datos del empleado
         const mapaEmpleados = {};
-        if (empleados) {
-            empleados.forEach(emp => { mapaEmpleados[emp.email] = emp; });
-        }
-
+        if (empleados) empleados.forEach(emp => { mapaEmpleados[emp.email] = emp; });
         pintarTabla('tablaTodosFichajes', fichajes, true, mapaEmpleados);
         cambiarPantalla('pantallaAdmin');
     }
@@ -317,7 +315,6 @@
         else { alert("✅ Corrección guardada."); cargarPanelAdmin(); }
     }
 
-    // FUNCIÓN PINTAR TABLA ACTUALIZADA CON NOMBRES Y DNI
     function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
         const tbody = document.getElementById(idBody);
         tbody.innerHTML = '';
@@ -328,7 +325,6 @@
             let fila = `<tr>`;
             
             if(esAdmin) {
-                // Buscamos al empleado en el diccionario. Si por algún motivo se borró, mostramos su email.
                 const emp = mapaEmpleados[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' };
                 fila += `<td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td>`;
             }
@@ -345,31 +341,75 @@
         });
     }
 
-    // EXPORTAR CSV ACTUALIZADO CON NOMBRES Y DNI SEPARADOS
-    async function exportarCSV() {
+    // --- NUEVA FUNCIÓN: GENERAR Y DESCARGAR PDF CON FIRMAS ---
+    async function descargarPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Título del documento
+        doc.setFontSize(16);
+        doc.text("Registro de Horas - Gastrobar Don Apolonio", 14, 15);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("Documento generado el: " + new Date().toLocaleDateString('es-ES'), 14, 22);
+
+        // Obtenemos los datos
         const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: true });
         const { data: empleados } = await cliente.from('empleados').select('*');
-        if(!fichajes || fichajes.length === 0) return alert("No hay datos");
+        if(!fichajes || fichajes.length === 0) return alert("No hay datos para exportar.");
 
-        // Creamos el diccionario para cruzar
         const mapa = {};
-        if (empleados) {
-            empleados.forEach(e => mapa[e.email] = e);
-        }
+        if (empleados) empleados.forEach(e => mapa[e.email] = e);
 
-        // Nuevas cabeceras
-        let csv = "Nombre,Apellidos,DNI,Fecha,Hora,Tipo\n";
-        
+        // Preparamos las filas y guardamos las firmas aparte para inyectarlas luego
+        const filas = [];
+        const firmasBase64 = [];
+
         fichajes.forEach(f => {
-            const emp = mapa[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '' };
+            const emp = mapa[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' };
             const fObj = new Date(f.fecha_hora);
             
-            // Añadimos comillas a nombre y apellidos por si tienen comas dentro
-            csv += `"${emp.nombre}","${emp.apellidos}","${emp.dni}",${fObj.toLocaleDateString('es-ES')},${fObj.toLocaleTimeString('es-ES')},"${f.tipo}"\n`;
+            filas.push([
+                `${emp.nombre} ${emp.apellidos}`, 
+                emp.dni, 
+                fObj.toLocaleDateString('es-ES'), 
+                fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}), 
+                f.tipo, 
+                "" // Columna vacía donde irá la imagen
+            ]);
+            firmasBase64.push(f.firma || null);
         });
-        
-        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-        const a = document.createElement("a"); a.href = url; a.download = `Registro_Horas_Gastrobar.csv`; a.click();
+
+        // Dibujamos la tabla
+        doc.autoTable({
+            startY: 30,
+            head: [['Trabajador', 'DNI', 'Fecha', 'Hora', 'Tipo', 'Firma']],
+            body: filas,
+            styles: { valign: 'middle', fontSize: 8 },
+            headStyles: { fillColor: [24, 24, 27] },
+            columnStyles: { 5: { cellWidth: 35, minCellHeight: 15 } }, // Hacemos la columna 5 (Firma) más ancha y alta
+            didDrawCell: function(data) {
+                // Si estamos dibujando la columna de la firma y es una fila del cuerpo (no cabecera)
+                if (data.column.index === 5 && data.cell.section === 'body') {
+                    const imagen = firmasBase64[data.row.index];
+                    if (imagen) {
+                        try {
+                            // Insertamos la imagen en las coordenadas exactas de la celda
+                            doc.addImage(imagen, 'PNG', data.cell.x + 2, data.cell.y + 2, 30, 11);
+                        } catch(e) {
+                            console.log("Error al cargar firma", e);
+                        }
+                    } else {
+                        // Si no hay firma (fichaje de entrada)
+                        doc.setTextColor(150);
+                        doc.text("Sin firma", data.cell.x + 8, data.cell.y + 9);
+                    }
+                }
+            }
+        });
+
+        // Guardamos el archivo en el ordenador/móvil
+        doc.save("Registro_Horas_Gastrobar.pdf");
     }
 
     async function cerrarSesion() {
