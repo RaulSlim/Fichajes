@@ -82,7 +82,7 @@
         </form>
     </div>
 
-    <!-- 3. PANEL PRINCIPAL -->
+    <!-- 3. PANEL PRINCIPAL (Solo para Trabajadores) -->
     <div class="container pantalla" id="pantallaFichaje">
         <h2>Hola, <span id="nombreUsuario">Usuario</span></h2>
         
@@ -94,7 +94,6 @@
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="abrirModalFirma()">🔴 FINALIZAR TURNO</button>
         </div>
         
-        <button id="btnAdmin" class="btn btn-admin" style="display:none;" onclick="cargarPanelAdmin()">👑 PANEL ADMINISTRADOR</button>
         <div class="nav-links">
             <span onclick="cargarMisHoras()">Mis horas</span>
             <span onclick="cerrarSesion()">Cerrar sesión</span>
@@ -144,14 +143,12 @@
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Gestión y Exportación</p>
         
-        <!-- NUEVO: SELECTOR DE MES Y BOTONES REDISEÑADOS -->
         <div class="actions" style="margin-top:0; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
                 <label style="text-align: center; color: #71717a;">Selecciona el mes a revisar:</label>
                 <input type="month" id="filtroMes" onchange="cargarPanelAdmin()" style="text-align: center; font-weight: bold;">
             </div>
             
-            <!-- Botón PDF oscuro y botón de Gestor Azul para evitar confusiones -->
             <button class="btn btn-primary" onclick="descargarPDF()" style="margin:0; font-size: 0.85rem;">📄 DESCARGAR PDF</button>
             <button class="btn" style="margin:0; font-size: 0.85rem; background-color: #3b82f6; color: white;" onclick="despertarRobotEmail()">✉️ ENVIAR AL GESTOR</button>
             
@@ -161,7 +158,8 @@
         <div class="tabla-container">
             <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
-        <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver al inicio</button>
+        <!-- Cambio clave: El Admin solo tiene el botón de Cerrar sesión aquí -->
+        <button class="btn btn-secondary" onclick="cerrarSesion()">Cerrar sesión</button>
     </div>
 
     <!-- 6. PANEL CORRECCIÓN ADMIN -->
@@ -328,11 +326,16 @@
         usuarioActual = user;
         const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false };
-        document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
-        document.getElementById('btnAdmin').style.display = datosPerfil.es_admin ? 'block' : 'none';
         
-        await revisarCorreccionesPendientes(); 
-        cambiarPantalla('pantallaFichaje');
+        if (datosPerfil.es_admin) {
+            // El administrador va directo a su panel. Adiós botones de fichar.
+            cargarPanelAdmin();
+        } else {
+            // El camarero va a su pantalla de fichaje
+            document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
+            await revisarCorreccionesPendientes(); 
+            cambiarPantalla('pantallaFichaje');
+        }
     }
 
     async function procesarFichaje(tipo, firmaCode = null) {
@@ -351,18 +354,14 @@
         cambiarPantalla('pantallaHistorial');
     }
 
-    // --- NUEVO: CARGA DEL PANEL FILTRADA POR MES ---
     async function cargarPanelAdmin() {
         let mesInput = document.getElementById('filtroMes');
-        // Si entra por primera vez y está vacío, le ponemos el mes actual
         if (!mesInput.value) {
             const now = new Date();
             mesInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         }
         
         const [anyo, mes] = mesInput.value.split('-');
-        
-        // Creamos rango desde el día 1 hasta final de mes para filtrar
         const primerDia = new Date(anyo, mes - 1, 1).toISOString();
         const ultimoDia = new Date(anyo, mes, 0, 23, 59, 59, 999).toISOString();
 
@@ -411,7 +410,7 @@
     function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
         const tbody = document.getElementById(idBody);
         tbody.innerHTML = '';
-        if(!datos) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
+        if(!datos || datos.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
         
         datos.forEach(f => {
             const fObj = new Date(f.fecha_hora);
@@ -435,7 +434,6 @@
         });
     }
 
-    // --- NUEVO: DESCARGAR PDF FILTRADO POR EL MES ELEGIDO ---
     async function descargarPDF() {
         const [anyo, mes] = document.getElementById('filtroMes').value.split('-');
         const primerDia = new Date(anyo, mes - 1, 1).toISOString();
@@ -491,10 +489,8 @@
         doc.save(`Registro_Horas_${mes}_${anyo}.pdf`);
     }
 
-    // --- NUEVO: BOTÓN DE DESPERTAR ROBOT ---
     function despertarRobotEmail() {
         alert("🔒 Por seguridad, las contraseñas de correo no pueden estar escritas dentro del código de esta página web.\n\nPara enviar el correo al gestor ahora mismo, te voy a redirigir al panel de tu Robot en GitHub. ¡Solo tienes que hacer clic en 'Run workflow' y se enviará al instante!");
-        // Redirige automáticamente a la pestaña Actions del repositorio
         window.open("https://github.com/raulslim/Fichajes/actions", "_blank");
     }
 
