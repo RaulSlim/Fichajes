@@ -101,7 +101,7 @@
         </div>
     </div>
 
-    <!-- VENTANA EMERGENTE FIRMA -->
+    <!-- VENTANA EMERGENTE: FIRMA SALIDA NORMAL -->
     <div class="modal-overlay" id="modalFirma">
         <div class="modal-content">
             <h2 style="font-size: 1.2rem; margin-bottom: 0;">Firma de Salida</h2>
@@ -109,9 +109,25 @@
             <canvas id="pizarraFirma"></canvas>
             <button class="btn btn-primary" onclick="confirmarSalidaConFirma()">✅ Guardar y Salir</button>
             <div class="row-grid">
-                <button class="btn btn-secondary" style="font-size: 0.85rem;" onclick="limpiarPizarra()">Limpiar</button>
+                <button class="btn btn-secondary" style="font-size: 0.85rem;" onclick="pizarraSalida.limpiar()">Limpiar</button>
                 <button class="btn btn-secondary" style="font-size: 0.85rem; background: transparent; color: #71717a; border: 1px solid #e4e4e7;" onclick="cerrarModalFirma()">Cancelar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- VENTANA EMERGENTE: AUDITORÍA CORRECCIONES (NUEVO) -->
+    <div class="modal-overlay" id="modalCorrecciones">
+        <div class="modal-content">
+            <h2 style="font-size: 1.2rem; margin-bottom: 0; color: #ea580c;">¡Aviso de Corrección!</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem; font-size: 0.8rem;">Dirección ha modificado tus horas. Por favor, revisa y firma abajo para confirmar que estás de acuerdo:</p>
+            
+            <div id="listaCorrecciones" style="text-align: left; background: #fefce8; padding: 10px; border-radius: 6px; margin-bottom: 1rem; font-size: 0.8rem; border: 1px solid #fef08a; max-height: 120px; overflow-y: auto;">
+                <!-- Aquí se inyectan las horas pendientes -->
+            </div>
+
+            <canvas id="pizarraCorrecciones"></canvas>
+            <button class="btn btn-warning" onclick="guardarFirmaCorrecciones()">✅ Confirmar y Firmar</button>
+            <button class="btn btn-secondary" style="font-size: 0.85rem; margin-bottom: 0;" onclick="pizarraAudit.limpiar()">Borrar dibujo</button>
         </div>
     </div>
 
@@ -129,7 +145,6 @@
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Gestión y Exportación</p>
         <div class="actions" style="margin-top:0; margin-bottom: 1rem; flex-direction: row; display: grid;">
-            <!-- BOTÓN CAMBIADO A DESCARGAR PDF -->
             <button class="btn btn-entrada" onclick="descargarPDF()" style="margin:0; font-size: 0.85rem;">📄 DESCARGAR PDF</button>
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
         </div>
@@ -163,38 +178,52 @@
     let usuarioActual = null;
     let datosPerfil = null;
     let intervaloContador = null;
+    let correccionesPendientes = [];
 
-    // --- LÓGICA DE LA PIZARRA TÁCTIL ---
-    const canvas = document.getElementById('pizarraFirma');
-    const ctx = canvas.getContext('2d');
-    let dibujando = false;
+    // --- SISTEMA UNIVERSAL DE PIZARRAS ---
+    function inicializarCanvas(idCanvas) {
+        const canvas = document.getElementById(idCanvas);
+        const ctx = canvas.getContext('2d');
+        let dibujando = false;
 
-    function ajustarCanvas() { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width; canvas.height = rect.height; }
-    function iniciarTrazo(e) { dibujando = true; ctx.beginPath(); moverTrazo(e); }
-    function terminarTrazo() { dibujando = false; ctx.beginPath(); }
-    function moverTrazo(e) {
-        if (!dibujando) return;
-        e.preventDefault(); 
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#18181b';
-        ctx.lineTo(clientX - rect.left, clientY - rect.top);
-        ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
+        function iniciar(e) { dibujando = true; ctx.beginPath(); mover(e); }
+        function terminar() { dibujando = false; ctx.beginPath(); }
+        function mover(e) {
+            if (!dibujando) return;
+            e.preventDefault(); 
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#18181b';
+            ctx.lineTo(clientX - rect.left, clientY - rect.top);
+            ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - top);
+        }
+
+        canvas.addEventListener('mousedown', iniciar); canvas.addEventListener('mouseup', terminar); canvas.addEventListener('mousemove', mover);
+        canvas.addEventListener('touchstart', iniciar, {passive: false}); canvas.addEventListener('touchend', terminar); canvas.addEventListener('touchmove', mover, {passive: false});
+
+        return {
+            canvas: canvas,
+            ctx: ctx,
+            limpiar: function() { ctx.clearRect(0, 0, canvas.width, canvas.height); },
+            ajustar: function() { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width; canvas.height = rect.height; },
+            obtenerBase64: function() { return canvas.toDataURL('image/png'); }
+        };
     }
 
-    canvas.addEventListener('mousedown', iniciarTrazo); canvas.addEventListener('mouseup', terminarTrazo); canvas.addEventListener('mousemove', moverTrazo);
-    canvas.addEventListener('touchstart', iniciarTrazo, {passive: false}); canvas.addEventListener('touchend', terminarTrazo); canvas.addEventListener('touchmove', moverTrazo, {passive: false});
+    const pizarraSalida = inicializarCanvas('pizarraFirma');
+    const pizarraAudit = inicializarCanvas('pizarraCorrecciones');
 
-    function limpiarPizarra() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
-    function abrirModalFirma() { document.getElementById('modalFirma').style.display = 'flex'; ajustarCanvas(); limpiarPizarra(); }
+    // --- VENTANA SALIDA NORMAL ---
+    function abrirModalFirma() { document.getElementById('modalFirma').style.display = 'flex'; pizarraSalida.ajustar(); pizarraSalida.limpiar(); }
     function cerrarModalFirma() { document.getElementById('modalFirma').style.display = 'none'; }
     async function confirmarSalidaConFirma() {
-        const firmaBase64 = canvas.toDataURL('image/png');
+        const firmaBase64 = pizarraSalida.obtenerBase64();
         cerrarModalFirma();
         procesarFichaje('Salida', firmaBase64);
     }
 
+    // --- LÓGICA GENERAL ---
     function cambiarPantalla(idDestino) {
         document.querySelectorAll('.pantalla').forEach(p => p.style.display = 'none');
         document.getElementById(idDestino).style.display = 'block';
@@ -213,12 +242,56 @@
         else cargarDatosUsuario(data.user);
     }
 
+    // --- NUEVO: REVISAR CORRECCIONES SIN FIRMAR ---
+    async function revisarCorreccionesPendientes() {
+        // Busca si este usuario tiene fichajes marcados como "Corregida" pero que tienen la columna firma vacía
+        const { data } = await cliente.from('fichajes')
+            .select('id, tipo, fecha_hora')
+            .eq('user_id', usuarioActual.id)
+            .like('tipo', '%(Corregida)%')
+            .is('firma', null);
+        
+        if (data && data.length > 0) {
+            correccionesPendientes = data;
+            
+            // Creamos la lista visual para que el empleado sepa qué está firmando
+            let htmlLista = "<ul>";
+            data.forEach(c => {
+                const fObj = new Date(c.fecha_hora);
+                htmlLista += `<li><strong>${c.tipo}</strong><br>${fObj.toLocaleDateString('es-ES')} a las ${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</li>`;
+            });
+            htmlLista += "</ul>";
+            
+            document.getElementById('listaCorrecciones').innerHTML = htmlLista;
+            document.getElementById('modalCorrecciones').style.display = 'flex';
+            pizarraAudit.ajustar();
+            pizarraAudit.limpiar();
+        } else {
+            // Si no hay nada pendiente, pasa directamente a comprobar si está trabajando
+            verificarEstadoJornada();
+        }
+    }
+
+    // Guardar la firma del empleado en todas las correcciones
+    async function guardarFirmaCorrecciones() {
+        const firmaB64 = pizarraAudit.obtenerBase64();
+        document.getElementById('modalCorrecciones').style.display = 'none';
+        
+        // Actualizamos cada registro pendiente en la base de datos con la misma firma
+        for (let c of correccionesPendientes) {
+            await cliente.from('fichajes').update({ firma: firmaB64 }).eq('id', c.id);
+        }
+        
+        alert("✅ Horas firmadas y aprobadas correctamente.");
+        verificarEstadoJornada(); // Continuamos al panel principal
+    }
+
     async function verificarEstadoJornada() {
         const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(1);
         const btnEntrada = document.getElementById('btnEntrada'); const btnSalida = document.getElementById('btnSalida');
         const contador = document.getElementById('contadorTiempo'); const texto = document.getElementById('textoEstado');
 
-        if (data && data.length > 0 && data[0].tipo.includes('Entrada')) {
+        if (data && data.length > 0 && data[0].tipo === 'Entrada') {
             btnEntrada.style.display = 'none'; btnSalida.style.display = 'block';
             contador.style.display = 'block'; texto.style.display = 'block';
             const fechaEntrada = new Date(data[0].fecha_hora);
@@ -258,7 +331,10 @@
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false };
         document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
         document.getElementById('btnAdmin').style.display = datosPerfil.es_admin ? 'block' : 'none';
-        await verificarEstadoJornada(); 
+        
+        // En vez de ir directo al cronómetro, comprobamos primero las firmas pendientes
+        await revisarCorreccionesPendientes(); 
+        
         cambiarPantalla('pantallaFichaje');
     }
 
@@ -307,12 +383,13 @@
         const workerId = (previo && previo.length > 0) ? previo[0].user_id : usuarioActual.id;
         const inserciones = [];
         
+        // Se guardan sin firma. El empleado las firmará cuando inicie sesión.
         if (hEntrada) inserciones.push({ user_id: workerId, email: email, tipo: 'Entrada (Corregida)', fecha_hora: new Date(`${fecha}T${hEntrada}`).toISOString() });
         if (hSalida) inserciones.push({ user_id: workerId, email: email, tipo: 'Salida (Corregida)', fecha_hora: new Date(`${fecha}T${hSalida}`).toISOString() });
 
         const { error } = await cliente.from('fichajes').insert(inserciones);
         if (error) alert("Error al guardar: " + error.message);
-        else { alert("✅ Corrección guardada."); cargarPanelAdmin(); }
+        else { alert("✅ Corrección guardada. El trabajador deberá firmarla al entrar."); cargarPanelAdmin(); }
     }
 
     function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
@@ -341,19 +418,16 @@
         });
     }
 
-    // --- NUEVA FUNCIÓN: GENERAR Y DESCARGAR PDF CON FIRMAS ---
     async function descargarPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
-        // Título del documento
         doc.setFontSize(16);
         doc.text("Registro de Horas - Gastrobar Don Apolonio", 14, 15);
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text("Documento generado el: " + new Date().toLocaleDateString('es-ES'), 14, 22);
 
-        // Obtenemos los datos
         const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: true });
         const { data: empleados } = await cliente.from('empleados').select('*');
         if(!fichajes || fichajes.length === 0) return alert("No hay datos para exportar.");
@@ -361,54 +435,32 @@
         const mapa = {};
         if (empleados) empleados.forEach(e => mapa[e.email] = e);
 
-        // Preparamos las filas y guardamos las firmas aparte para inyectarlas luego
         const filas = [];
         const firmasBase64 = [];
 
         fichajes.forEach(f => {
             const emp = mapa[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' };
             const fObj = new Date(f.fecha_hora);
-            
-            filas.push([
-                `${emp.nombre} ${emp.apellidos}`, 
-                emp.dni, 
-                fObj.toLocaleDateString('es-ES'), 
-                fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}), 
-                f.tipo, 
-                "" // Columna vacía donde irá la imagen
-            ]);
+            filas.push([`${emp.nombre} ${emp.apellidos}`, emp.dni, fObj.toLocaleDateString('es-ES'), fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}), f.tipo, ""]);
             firmasBase64.push(f.firma || null);
         });
 
-        // Dibujamos la tabla
         doc.autoTable({
-            startY: 30,
-            head: [['Trabajador', 'DNI', 'Fecha', 'Hora', 'Tipo', 'Firma']],
-            body: filas,
-            styles: { valign: 'middle', fontSize: 8 },
-            headStyles: { fillColor: [24, 24, 27] },
-            columnStyles: { 5: { cellWidth: 35, minCellHeight: 15 } }, // Hacemos la columna 5 (Firma) más ancha y alta
+            startY: 30, head: [['Trabajador', 'DNI', 'Fecha', 'Hora', 'Tipo', 'Firma']], body: filas,
+            styles: { valign: 'middle', fontSize: 8 }, headStyles: { fillColor: [24, 24, 27] },
+            columnStyles: { 5: { cellWidth: 35, minCellHeight: 15 } }, 
             didDrawCell: function(data) {
-                // Si estamos dibujando la columna de la firma y es una fila del cuerpo (no cabecera)
                 if (data.column.index === 5 && data.cell.section === 'body') {
                     const imagen = firmasBase64[data.row.index];
                     if (imagen) {
-                        try {
-                            // Insertamos la imagen en las coordenadas exactas de la celda
-                            doc.addImage(imagen, 'PNG', data.cell.x + 2, data.cell.y + 2, 30, 11);
-                        } catch(e) {
-                            console.log("Error al cargar firma", e);
-                        }
+                        try { doc.addImage(imagen, 'PNG', data.cell.x + 2, data.cell.y + 2, 30, 11); } catch(e) {}
                     } else {
-                        // Si no hay firma (fichaje de entrada)
-                        doc.setTextColor(150);
-                        doc.text("Sin firma", data.cell.x + 8, data.cell.y + 9);
+                        doc.setTextColor(150); doc.text("Sin firma", data.cell.x + 8, data.cell.y + 9);
                     }
                 }
             }
         });
 
-        // Guardamos el archivo en el ordenador/móvil
         doc.save("Registro_Horas_Gastrobar.pdf");
     }
 
