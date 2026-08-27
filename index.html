@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control Horario</title>
-    <!-- Librerías para generar PDF en la web -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
@@ -61,7 +60,6 @@
 </head>
 <body>
 
-    <!-- 1. LOGIN -->
     <div class="container pantalla" id="pantallaLogin">
         <h2>Acceso Empleados</h2>
         <p class="subtitle">Inicia sesión para registrar tu jornada</p>
@@ -73,7 +71,6 @@
         <span class="link-text" onclick="cambiarPantalla('pantallaRegistro')">¿Nuevo empleado? Regístrate aquí</span>
     </div>
 
-    <!-- 2. REGISTRO -->
     <div class="container pantalla" id="pantallaRegistro">
         <h2>Nuevo Trabajador</h2>
         <form onsubmit="crearCuenta(event)">
@@ -87,11 +84,9 @@
         </form>
     </div>
 
-    <!-- 3. PANEL PRINCIPAL TRABAJADORES -->
     <div class="container pantalla" id="pantallaFichaje">
         <h2>Hola, <span id="nombreUsuario">Usuario</span></h2>
         
-        <!-- INFO DEL TURNO DEL DÍA CALCULADO POR EL ROBOT -->
         <div style="border: 1px solid #e4e4e7; padding: 10px; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem; display: none;" id="infoTurnoHoy">
             <span id="textoTurnoHoy">Calculando...</span>
         </div>
@@ -111,24 +106,18 @@
         </div>
     </div>
 
-    <!-- 4. CALENDARIO DEL EMPLEADO -->
     <div class="container pantalla" id="pantallaCalendarioEmpleado">
         <h2>Mi Cuadrante</h2>
         <p class="subtitle" id="subtituloCuadrante">Cargando...</p>
-        
         <div class="tabla-container">
             <table style="font-size: 0.85rem; margin-top: 0;">
                 <thead><tr><th>Día</th><th>Turno asignado</th></tr></thead>
-                <tbody id="tablaCalendarioSemana">
-                    <!-- Se llena con Javascript -->
-                </tbody>
+                <tbody id="tablaCalendarioSemana"></tbody>
             </table>
         </div>
-        
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
 
-    <!-- VENTANAS DE FIRMAS -->
     <div class="modal-overlay" id="modalFirma">
         <div class="modal-content">
             <h2 style="font-size: 1.2rem; margin-bottom: 0;">Firma de Salida</h2>
@@ -153,7 +142,6 @@
         </div>
     </div>
 
-    <!-- MIS HORAS (Historial) -->
     <div class="container pantalla" id="pantallaHistorial">
         <h2>Mis Fichajes</h2>
         <div class="tabla-container">
@@ -162,7 +150,6 @@
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
 
-    <!-- 5. PANEL ADMIN -->
     <div class="container pantalla" id="pantallaAdmin">
         <h2>Panel de Dirección</h2>
         <p class="subtitle">Auditoría y Horarios</p>
@@ -185,22 +172,18 @@
         <button class="btn btn-secondary" onclick="cerrarSesion()">Cerrar sesión</button>
     </div>
 
-    <!-- GESTIÓN DE PLANTILLA (ROLES Y CARGOS) -->
     <div class="container pantalla" id="pantallaGestionPlantilla">
         <h2>Plantilla y Roles</h2>
         <p class="subtitle">Asigna los turnos a cada trabajador</p>
-        
         <div class="tabla-container" style="max-height: 400px;">
             <table style="font-size: 0.85rem;">
                 <thead><tr><th>Empleado</th><th>Cargo y Rol</th><th>Acción</th></tr></thead>
                 <tbody id="tablaPlantilla"></tbody>
             </table>
         </div>
-        
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
     </div>
 
-    <!-- MODAL PARA ASIGNAR ROL -->
     <div class="modal-overlay" id="modalAsignarRol">
         <div class="modal-content" style="max-width: 350px;">
             <h3 style="margin-top: 0;">Asignar Turno</h3>
@@ -228,7 +211,6 @@
         </div>
     </div>
 
-    <!-- PANEL CORRECCIÓN ADMIN -->
     <div class="container pantalla" id="pantallaCorreccionAdmin">
         <h2>Fichaje Manual</h2>
         <p class="subtitle">Inserta las horas olvidadas de un empleado</p>
@@ -252,9 +234,8 @@
     let datosPerfil = null;
     let intervaloContador = null;
     let correccionesPendientes = [];
-    let empleadoEditando = null;
+    let emailEmpleadoEditando = null; 
 
-    // --- PIZARRAS ---
     function inicializarCanvas(idCanvas) {
         const canvas = document.getElementById(idCanvas);
         const ctx = canvas.getContext('2d');
@@ -275,6 +256,7 @@
         canvas.addEventListener('touchstart', iniciar, {passive: false}); canvas.addEventListener('touchend', terminar); canvas.addEventListener('touchmove', mover, {passive: false});
         return { canvas: canvas, ctx: ctx, limpiar: function() { ctx.clearRect(0, 0, canvas.width, canvas.height); }, ajustar: function() { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width; canvas.height = rect.height; }, obtenerBase64: function() { return canvas.toDataURL('image/png'); } };
     }
+    
     const pizarraSalida = inicializarCanvas('pizarraFirma');
     const pizarraAudit = inicializarCanvas('pizarraCorrecciones');
 
@@ -296,63 +278,44 @@
         else cargarDatosUsuario(data.user);
     }
 
-    // --- LÓGICA MATEMÁTICA DE TURNOS ---
     function calcularTurno(cargo, rolAsignado, fechaAnclaStr) {
         if (!cargo || !rolAsignado || !fechaAnclaStr) return null;
-
-        const hoy = new Date();
-        const ancla = new Date(fechaAnclaStr);
+        const hoy = new Date(); const ancla = new Date(fechaAnclaStr);
         ancla.setHours(0,0,0,0); hoy.setHours(0,0,0,0);
+        const diffTime = hoy - ancla; const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const semanasTranscurridas = Math.floor(diffDays / 7); const fase = Math.floor(semanasTranscurridas / 4);
 
-        const diffTime = hoy - ancla;
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        const semanasTranscurridas = Math.floor(diffDays / 7);
-        const fase = Math.floor(semanasTranscurridas / 4); // Cambia cada 4 semanas
-
-        let turnoHoy = "Libre";
-        let semanaStr = [];
-        const diaSemana = hoy.getDay() || 7; // 1:L, 7:D
+        let turnoHoy = "Libre"; let semanaStr = []; const diaSemana = hoy.getDay() || 7;
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
-            // Lógica Cocina (Ciclo A: L-J | Ciclo B: J-D)
             let cicloActual = 'A';
             if (numRol === 1 || numRol === 2) { cicloActual = (fase % 2 === 0) ? 'A' : 'B'; } 
             else if (numRol === 3 || numRol === 4) { cicloActual = (fase % 2 === 0) ? 'B' : 'A'; }
-
             const horario = (numRol === 1 || numRol === 3) ? '08:30 a 18:30' : '11:30 a 21:30';
-            
             for (let i=1; i<=7; i++) {
                 let trabaja = false;
-                if (cicloActual === 'A' && i >= 1 && i <= 4) trabaja = true; // Lunes a Jueves
-                if (cicloActual === 'B' && i >= 4 && i <= 7) trabaja = true; // Jueves a Domingo
+                if (cicloActual === 'A' && i >= 1 && i <= 4) trabaja = true;
+                if (cicloActual === 'B' && i >= 4 && i <= 7) trabaja = true;
                 semanaStr.push(trabaja ? horario : 'Libre');
             }
             turnoHoy = semanaStr[diaSemana - 1];
-            return { rolActivo: `Rol ${numRol} (Ciclo actual: ${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, turnoHoy: turnoHoy, calendario: semanaStr };
+            return { rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, turnoHoy: turnoHoy, calendario: semanaStr };
         } 
         else if (cargo === 'Camarero') {
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
-            // Lógica Sala (1 -> 2 -> 3 -> 5 -> 4 -> 1)
             const secuencia = [1, 2, 3, 5, 4];
             const idxInicial = secuencia.indexOf(numRolAsignado);
             let idxActual = (idxInicial + fase) % 5;
-            if (idxActual < 0) idxActual = 0; // Por si hay algún error
-            
+            if (idxActual < 0) idxActual = 0;
             const rolActual = secuencia[idxActual];
             let l='Libre', m='Libre', x='Libre', j='Libre', v='Libre', s='Libre', d='Libre';
 
-            if (rolActual === 1) {
-                j = 'Cierre (11:30-21:30)'; v = 'Cierre (11:30-21:30)'; s = 'Cierre (11:30-21:30)'; d = 'Cierre (11:30-21:30)';
-            } else if (rolActual === 2) {
-                l = 'Apoyo (09:00-19:00)'; v = 'Apertura (08:30-18:30)'; s = 'Apertura (08:30-18:30)'; d = 'Apertura (08:30-18:30)';
-            } else if (rolActual === 3) {
-                l = 'Cierre (11:30-21:30)'; m = 'Apoyo (09:00-19:00)'; s = 'Apoyo (09:00-19:00)'; d = 'Apoyo (09:00-19:00)';
-            } else if (rolActual === 4) {
-                m = 'Cierre (11:30-21:30)'; x = 'Cierre (11:30-21:30)'; j = 'Apoyo (09:00-19:00)'; v = 'Apoyo (09:00-19:00)';
-            } else if (rolActual === 5) {
-                l = 'Apertura (08:30-18:30)'; m = 'Apertura (08:30-18:30)'; x = 'Apertura (08:30-18:30)'; j = 'Apertura (08:30-18:30)';
-            }
+            if (rolActual === 1) { j = 'Cierre (11:30-21:30)'; v = 'Cierre (11:30-21:30)'; s = 'Cierre (11:30-21:30)'; d = 'Cierre (11:30-21:30)'; } 
+            else if (rolActual === 2) { l = 'Apoyo (09:00-19:00)'; v = 'Apertura (08:30-18:30)'; s = 'Apertura (08:30-18:30)'; d = 'Apertura (08:30-18:30)'; } 
+            else if (rolActual === 3) { l = 'Cierre (11:30-21:30)'; m = 'Apoyo (09:00-19:00)'; s = 'Apoyo (09:00-19:00)'; d = 'Apoyo (09:00-19:00)'; } 
+            else if (rolActual === 4) { m = 'Cierre (11:30-21:30)'; x = 'Cierre (11:30-21:30)'; j = 'Apoyo (09:00-19:00)'; v = 'Apoyo (09:00-19:00)'; } 
+            else if (rolActual === 5) { l = 'Apertura (08:30-18:30)'; m = 'Apertura (08:30-18:30)'; x = 'Apertura (08:30-18:30)'; j = 'Apertura (08:30-18:30)'; }
 
             semanaStr = [l, m, x, j, v, s, d];
             turnoHoy = semanaStr[diaSemana - 1];
@@ -362,24 +325,18 @@
     }
 
     function pintarCalendarioEmpleado() {
-        const divInfo = document.getElementById('infoTurnoHoy');
-        const txtTurno = document.getElementById('textoTurnoHoy');
-        const subtitulo = document.getElementById('subtituloCuadrante');
-        const tbody = document.getElementById('tablaCalendarioSemana');
+        const divInfo = document.getElementById('infoTurnoHoy'); const txtTurno = document.getElementById('textoTurnoHoy');
+        const subtitulo = document.getElementById('subtituloCuadrante'); const tbody = document.getElementById('tablaCalendarioSemana');
 
         if (!datosPerfil.cargo || !datosPerfil.rol_turno || !datosPerfil.fecha_ancla) {
-            divInfo.style.display = 'none';
-            subtitulo.textContent = 'Turno no asignado';
+            divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
             tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>';
             return;
         }
 
         const info = calcularTurno(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla);
         if (info) {
-            divInfo.style.display = 'block';
-            subtitulo.textContent = `${datosPerfil.cargo} - ${info.rolActivo}`;
-            
-            // Colorear cartel de turno
+            divInfo.style.display = 'block'; subtitulo.textContent = `${datosPerfil.cargo} - ${info.rolActivo}`;
             if (info.turnoHoy === 'Libre') {
                 divInfo.style.background = '#f1f5f9'; divInfo.style.borderColor = '#cbd5e1'; divInfo.style.color = '#475569';
                 txtTurno.innerHTML = '<strong>Hoy tienes Día Libre 🏖️</strong>';
@@ -387,12 +344,8 @@
                 divInfo.style.background = '#f0fdf4'; divInfo.style.borderColor = '#bbf7d0'; divInfo.style.color = '#166534';
                 txtTurno.innerHTML = `Turno de hoy: <strong>${info.turnoHoy}</strong>`;
             }
-
-            // Pintar la tabla de la semana
             const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-            let htmlTabla = '';
-            const hoy = new Date(); const diaSemanaHoy = hoy.getDay() || 7;
-
+            let htmlTabla = ''; const hoy = new Date(); const diaSemanaHoy = hoy.getDay() || 7;
             for(let i=0; i<7; i++) {
                 const esHoy = (i + 1 === diaSemanaHoy);
                 const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
@@ -402,24 +355,18 @@
             tbody.innerHTML = htmlTabla;
         }
     }
-    // ----------------------------------------
 
     async function cargarDatosUsuario(user) {
         usuarioActual = user;
         const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null, fecha_ancla: null };
-        
-        if (datosPerfil.es_admin) {
-            cargarPanelAdmin();
-        } else {
+        if (datosPerfil.es_admin) { cargarPanelAdmin(); } 
+        else {
             document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
-            pintarCalendarioEmpleado(); // Llamamos al motor matemático
-            await revisarCorreccionesPendientes(); 
-            cambiarPantalla('pantallaFichaje');
+            pintarCalendarioEmpleado(); await revisarCorreccionesPendientes(); cambiarPantalla('pantallaFichaje');
         }
     }
 
-    // Funciones estándar (Correcciones, PDF, Tabla) - Igual que antes
     async function revisarCorreccionesPendientes() {
         const { data } = await cliente.from('fichajes').select('id, tipo, fecha_hora').eq('email', usuarioActual.email).like('tipo', '%(Corregida)%').is('firma', null);
         if (data && data.length > 0) {
@@ -476,13 +423,27 @@
         const email = document.getElementById('regEmail').value;
         const { error } = await cliente.auth.signUp({ email: email, password: document.getElementById('regPass').value });
         if (error) return alert("Error: " + error.message);
-        await cliente.from('empleados').insert([{ email: email, nombre: document.getElementById('regNombre').value, apellidos: document.getElementById('regApellidos').value, dni: document.getElementById('regDni').value }]);
+        
+        // Al crear la cuenta, guardamos todos los datos (el ID ahora se genera solo en Supabase)
+        await cliente.from('empleados').insert([{ 
+            email: email, 
+            nombre: document.getElementById('regNombre').value, 
+            apellidos: document.getElementById('regApellidos').value, 
+            dni: document.getElementById('regDni').value 
+        }]);
+        
         alert("Cuenta creada. Inicia sesión."); cambiarPantalla('pantallaLogin');
     }
 
     async function cargarMisHoras() {
         const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(20);
-        pintarTabla('tablaMisHoras', data, false, {}); cambiarPantalla('pantallaHistorial');
+        const tbody = document.getElementById('tablaMisHoras'); tbody.innerHTML = '';
+        if(data) data.forEach(f => {
+            const fObj = new Date(f.fecha_hora); const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
+            let visualFirma = f.firma ? `<img src="${f.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa;">Sin firma</span>`;
+            tbody.innerHTML += `<tr><td>${fObj.toLocaleDateString('es-ES')}</td><td>${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td><td class="${clase}">${f.tipo}</td><td style="text-align:center;">${visualFirma}</td></tr>`;
+        });
+        cambiarPantalla('pantallaHistorial');
     }
 
     async function cargarPanelAdmin() {
@@ -506,14 +467,15 @@
                 let badge = `<span style="color: #a1a1aa; font-size:0.75rem;">Sin asignar</span>`;
                 if (emp.cargo === 'Cocinero') badge = `<span class="cargo-badge badge-cocina">Coc - ${emp.rol_turno}</span>`;
                 if (emp.cargo === 'Camarero') badge = `<span class="cargo-badge badge-sala">Cam - ${emp.rol_turno}</span>`;
-                tbody.innerHTML += `<tr><td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${badge}</td><td><button class="btn btn-secondary" style="margin:0; padding: 5px; font-size: 0.75rem;" onclick="abrirModalRol('${emp.id}', '${emp.nombre}', '${emp.cargo || ''}', '${emp.rol_turno || ''}')">Modificar</button></td></tr>`;
+                tbody.innerHTML += `<tr><td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${badge}</td><td><button class="btn btn-secondary" style="margin:0; padding: 5px; font-size: 0.75rem;" onclick="abrirModalRol('${emp.email}', '${emp.nombre}', '${emp.cargo || ''}', '${emp.rol_turno || ''}')">Modificar</button></td></tr>`;
             });
         }
         cambiarPantalla('pantallaGestionPlantilla');
     }
 
-    function abrirModalRol(id, nombre, cargo, rol) {
-        empleadoEditando = id; document.getElementById('nombreAsignarRol').textContent = nombre; document.getElementById('selectCargo').value = cargo;
+    function abrirModalRol(email, nombre, cargo, rol) {
+        emailEmpleadoEditando = email; 
+        document.getElementById('nombreAsignarRol').textContent = nombre; document.getElementById('selectCargo').value = cargo;
         actualizarOpcionesRol(); document.getElementById('selectRol').value = rol; document.getElementById('modalAsignarRol').style.display = 'flex';
     }
 
@@ -528,12 +490,11 @@
         const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
         if (cargo && !rol) return alert("Debes seleccionar un número de Rol");
         
-        // Se ancla el inicio del ciclo al Lunes de esta semana
         const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
         const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('id', empleadoEditando);
+        const { error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando);
         if (error) alert("Error al guardar: " + error.message);
         else { document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
     }
@@ -550,9 +511,10 @@
         const email = document.getElementById('corrEmpleado').value; const fecha = document.getElementById('corrFecha').value;
         const hEntrada = document.getElementById('corrEntrada').value; const hSalida = document.getElementById('corrSalida').value;
         if(!email || !fecha || (!hEntrada && !hSalida)) return alert("Faltan datos.");
-        const { data: previo } = await cliente.from('fichajes').select('user_id').eq('email', email).limit(1);
-        const workerId = (previo && previo.length > 0) ? previo[0].user_id : null;
-        if(!workerId) return alert("Error: No se encuentra ID del trabajador");
+        
+        const { data: previo } = await cliente.from('empleados').select('id').eq('email', email).limit(1);
+        const workerId = (previo && previo.length > 0) ? previo[0].id : null;
+        
         const inserciones = [];
         if (hEntrada) inserciones.push({ user_id: workerId, email: email, tipo: 'Entrada (Corregida)', fecha_hora: new Date(`${fecha}T${hEntrada}`).toISOString() });
         if (hSalida) inserciones.push({ user_id: workerId, email: email, tipo: 'Salida (Corregida)', fecha_hora: new Date(`${fecha}T${hSalida}`).toISOString() });
