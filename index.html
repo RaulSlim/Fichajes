@@ -115,7 +115,7 @@
         </div>
     </div>
 
-    <!-- VENTANA EMERGENTE: AUDITORÍA CORRECCIONES (NUEVO) -->
+    <!-- VENTANA EMERGENTE: AUDITORÍA CORRECCIONES -->
     <div class="modal-overlay" id="modalCorrecciones">
         <div class="modal-content">
             <h2 style="font-size: 1.2rem; margin-bottom: 0; color: #ea580c;">¡Aviso de Corrección!</h2>
@@ -127,7 +127,7 @@
 
             <canvas id="pizarraCorrecciones"></canvas>
             <button class="btn btn-warning" onclick="guardarFirmaCorrecciones()">✅ Confirmar y Firmar</button>
-            <button class="btn btn-secondary" style="font-size: 0.85rem; margin-bottom: 0;" onclick="pizarraAudit.limpiar()">Borrar dibujo</button>
+            <button class="btn btn-secondary" style="font-size: 0.85rem; margin-top: 10px; margin-bottom: 0;" onclick="pizarraAudit.limpiar()">Borrar dibujo</button>
         </div>
     </div>
 
@@ -196,7 +196,7 @@
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#18181b';
             ctx.lineTo(clientX - rect.left, clientY - rect.top);
-            ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - top);
+            ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
         }
 
         canvas.addEventListener('mousedown', iniciar); canvas.addEventListener('mouseup', terminar); canvas.addEventListener('mousemove', mover);
@@ -214,7 +214,6 @@
     const pizarraSalida = inicializarCanvas('pizarraFirma');
     const pizarraAudit = inicializarCanvas('pizarraCorrecciones');
 
-    // --- VENTANA SALIDA NORMAL ---
     function abrirModalFirma() { document.getElementById('modalFirma').style.display = 'flex'; pizarraSalida.ajustar(); pizarraSalida.limpiar(); }
     function cerrarModalFirma() { document.getElementById('modalFirma').style.display = 'none'; }
     async function confirmarSalidaConFirma() {
@@ -223,7 +222,6 @@
         procesarFichaje('Salida', firmaBase64);
     }
 
-    // --- LÓGICA GENERAL ---
     function cambiarPantalla(idDestino) {
         document.querySelectorAll('.pantalla').forEach(p => p.style.display = 'none');
         document.getElementById(idDestino).style.display = 'block';
@@ -242,56 +240,57 @@
         else cargarDatosUsuario(data.user);
     }
 
-    // --- NUEVO: REVISAR CORRECCIONES SIN FIRMAR ---
+    // --- REVISIÓN POR EMAIL (INFALIBLE) ---
     async function revisarCorreccionesPendientes() {
-        // Busca si este usuario tiene fichajes marcados como "Corregida" pero que tienen la columna firma vacía
+        // Ahora buscamos estrictamente por el EMAIL del usuario actual
         const { data } = await cliente.from('fichajes')
             .select('id, tipo, fecha_hora')
-            .eq('user_id', usuarioActual.id)
+            .eq('email', usuarioActual.email)
             .like('tipo', '%(Corregida)%')
             .is('firma', null);
         
         if (data && data.length > 0) {
             correccionesPendientes = data;
             
-            // Creamos la lista visual para que el empleado sepa qué está firmando
-            let htmlLista = "<ul>";
+            let htmlLista = "<ul style='padding-left: 20px; margin-top: 5px;'>";
             data.forEach(c => {
                 const fObj = new Date(c.fecha_hora);
-                htmlLista += `<li><strong>${c.tipo}</strong><br>${fObj.toLocaleDateString('es-ES')} a las ${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</li>`;
+                htmlLista += `<li><strong>${c.tipo}</strong>: ${fObj.toLocaleDateString('es-ES')} a las ${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</li>`;
             });
             htmlLista += "</ul>";
             
             document.getElementById('listaCorrecciones').innerHTML = htmlLista;
             document.getElementById('modalCorrecciones').style.display = 'flex';
-            pizarraAudit.ajustar();
-            pizarraAudit.limpiar();
+            
+            // Damos un pequeño retraso para que la ventana se dibuje antes de ajustar la pizarra
+            setTimeout(() => {
+                pizarraAudit.ajustar();
+                pizarraAudit.limpiar();
+            }, 100);
         } else {
-            // Si no hay nada pendiente, pasa directamente a comprobar si está trabajando
             verificarEstadoJornada();
         }
     }
 
-    // Guardar la firma del empleado en todas las correcciones
     async function guardarFirmaCorrecciones() {
         const firmaB64 = pizarraAudit.obtenerBase64();
         document.getElementById('modalCorrecciones').style.display = 'none';
         
-        // Actualizamos cada registro pendiente en la base de datos con la misma firma
         for (let c of correccionesPendientes) {
             await cliente.from('fichajes').update({ firma: firmaB64 }).eq('id', c.id);
         }
         
         alert("✅ Horas firmadas y aprobadas correctamente.");
-        verificarEstadoJornada(); // Continuamos al panel principal
+        verificarEstadoJornada(); 
     }
 
     async function verificarEstadoJornada() {
-        const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(1);
+        // Ahora también comprobamos por EMAIL para evitar fallos de identidad
+        const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(1);
         const btnEntrada = document.getElementById('btnEntrada'); const btnSalida = document.getElementById('btnSalida');
         const contador = document.getElementById('contadorTiempo'); const texto = document.getElementById('textoEstado');
 
-        if (data && data.length > 0 && data[0].tipo === 'Entrada') {
+        if (data && data.length > 0 && data[0].tipo.includes('Entrada')) {
             btnEntrada.style.display = 'none'; btnSalida.style.display = 'block';
             contador.style.display = 'block'; texto.style.display = 'block';
             const fechaEntrada = new Date(data[0].fecha_hora);
@@ -332,9 +331,7 @@
         document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
         document.getElementById('btnAdmin').style.display = datosPerfil.es_admin ? 'block' : 'none';
         
-        // En vez de ir directo al cronómetro, comprobamos primero las firmas pendientes
         await revisarCorreccionesPendientes(); 
-        
         cambiarPantalla('pantallaFichaje');
     }
 
@@ -349,7 +346,8 @@
     }
 
     async function cargarMisHoras() {
-        const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(20);
+        // También por email
+        const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false }).limit(20);
         pintarTabla('tablaMisHoras', data, false, {}); 
         cambiarPantalla('pantallaHistorial');
     }
@@ -383,7 +381,6 @@
         const workerId = (previo && previo.length > 0) ? previo[0].user_id : usuarioActual.id;
         const inserciones = [];
         
-        // Se guardan sin firma. El empleado las firmará cuando inicie sesión.
         if (hEntrada) inserciones.push({ user_id: workerId, email: email, tipo: 'Entrada (Corregida)', fecha_hora: new Date(`${fecha}T${hEntrada}`).toISOString() });
         if (hSalida) inserciones.push({ user_id: workerId, email: email, tipo: 'Salida (Corregida)', fecha_hora: new Date(`${fecha}T${hSalida}`).toISOString() });
 
