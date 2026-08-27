@@ -34,20 +34,19 @@
         .nav-links { display: flex; justify-content: space-around; margin-top: 1.5rem; font-size: 0.85rem; }
         .nav-links span { cursor: pointer; color: #71717a; text-decoration: underline; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; text-align: left; }
-        th, td { border-bottom: 1px solid #e4e4e7; padding: 0.5rem; }
+        /* TABLAS ACTUALIZADAS PARA MOSTRAR FIRMA */
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.8rem; text-align: left; }
+        th, td { border-bottom: 1px solid #e4e4e7; padding: 0.5rem 0.2rem; vertical-align: middle; }
         th { background-color: #f4f4f5; font-weight: 600; }
         .tipo-entrada { color: #16a34a; font-weight: bold; }
         .tipo-salida { color: #ea580c; font-weight: bold; }
-        .tabla-container { max-height: 250px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
+        .tabla-container { max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
         .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-        /* Estilos del modal y pizarra */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; padding: 1rem; }
         .modal-content { background: white; padding: 1.5rem; border-radius: 12px; width: 100%; max-width: 400px; text-align: center; }
         canvas { border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; cursor: crosshair; touch-action: none; width: 100%; height: 180px; margin-bottom: 1rem; }
         
-        /* Estilos del cronómetro */
         #contadorTiempo { font-size: 2.5rem; color: #3b82f6; margin: 15px 0 5px 0; font-family: monospace; }
         #textoEstado { color: #71717a; font-size: 0.9rem; margin-bottom: 15px; }
     </style>
@@ -80,16 +79,14 @@
         </form>
     </div>
 
-    <!-- 3. PANEL PRINCIPAL (AHORA CON CRONÓMETRO) -->
+    <!-- 3. PANEL PRINCIPAL -->
     <div class="container pantalla" id="pantallaFichaje">
         <h2>Hola, <span id="nombreUsuario">Usuario</span></h2>
         
-        <!-- Zona del Cronómetro -->
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
         <div class="actions">
-            <!-- Los botones se mostrarán u ocultarán automáticamente -->
             <button id="btnEntrada" class="btn btn-entrada" onclick="procesarFichaje('Entrada')">🟢 FICHAJE DE ENTRADA</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="abrirModalFirma()">🔴 FINALIZAR TURNO</button>
         </div>
@@ -101,7 +98,7 @@
         </div>
     </div>
 
-    <!-- VENTANA EMERGENTE (MODAL) DE FIRMA -->
+    <!-- VENTANA EMERGENTE FIRMA -->
     <div class="modal-overlay" id="modalFirma">
         <div class="modal-content">
             <h2 style="font-size: 1.2rem; margin-bottom: 0;">Firma de Salida</h2>
@@ -119,7 +116,7 @@
     <div class="container pantalla" id="pantallaHistorial">
         <h2>Mis Fichajes</h2>
         <div class="tabla-container">
-            <table><thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th></tr></thead><tbody id="tablaMisHoras"></tbody></table>
+            <table><thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaMisHoras"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
@@ -133,7 +130,7 @@
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
         </div>
         <div class="tabla-container">
-            <table><thead><tr><th>Email</th><th>Fecha</th><th>Hora</th><th>Tipo</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
+            <table><thead><tr><th>Email</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver al inicio</button>
     </div>
@@ -161,7 +158,7 @@
 
     let usuarioActual = null;
     let datosPerfil = null;
-    let intervaloContador = null; // Variable para el reloj
+    let intervaloContador = null;
 
     // --- LÓGICA DE LA PIZARRA TÁCTIL ---
     const canvas = document.getElementById('pizarraFirma');
@@ -198,7 +195,6 @@
         cerrarModalFirma();
         procesarFichaje('Salida', firmaBase64);
     }
-    // ------------------------------------
 
     function cambiarPantalla(idDestino) {
         document.querySelectorAll('.pantalla').forEach(p => p.style.display = 'none');
@@ -218,60 +214,38 @@
         else cargarDatosUsuario(data.user);
     }
 
-    // --- NUEVA LÓGICA: COMPROBAR SI ESTÁ TRABAJANDO ---
     async function verificarEstadoJornada() {
-        // Buscamos el último fichaje de este usuario
-        const { data } = await cliente.from('fichajes')
-            .select('*')
-            .eq('user_id', usuarioActual.id)
-            .order('fecha_hora', { ascending: false })
-            .limit(1);
-
+        const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(1);
         const btnEntrada = document.getElementById('btnEntrada');
         const btnSalida = document.getElementById('btnSalida');
         const contador = document.getElementById('contadorTiempo');
         const texto = document.getElementById('textoEstado');
 
-        if (data && data.length > 0 && data[0].tipo === 'Entrada') {
-            // Su último registro fue una Entrada: ESTÁ TRABAJANDO
-            btnEntrada.style.display = 'none';
-            btnSalida.style.display = 'block';
-            contador.style.display = 'block';
-            texto.style.display = 'block';
-            
+        if (data && data.length > 0 && data[0].tipo.includes('Entrada')) {
+            btnEntrada.style.display = 'none'; btnSalida.style.display = 'block';
+            contador.style.display = 'block'; texto.style.display = 'block';
             const fechaEntrada = new Date(data[0].fecha_hora);
             document.getElementById('horaInicio').textContent = fechaEntrada.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
-            
             iniciarCronometro(fechaEntrada);
         } else {
-            // Su último registro fue Salida (o no tiene): NO ESTÁ TRABAJANDO
-            btnEntrada.style.display = 'block';
-            btnSalida.style.display = 'none';
-            contador.style.display = 'none';
-            texto.style.display = 'none';
-            
+            btnEntrada.style.display = 'block'; btnSalida.style.display = 'none';
+            contador.style.display = 'none'; texto.style.display = 'none';
             if (intervaloContador) clearInterval(intervaloContador);
         }
     }
 
     function iniciarCronometro(fechaInicio) {
         if (intervaloContador) clearInterval(intervaloContador);
-        
         intervaloContador = setInterval(() => {
             const ahora = new Date();
-            const diferencia = ahora - fechaInicio; // en milisegundos
-            
+            const diferencia = ahora - fechaInicio;
             const horas = Math.floor(diferencia / (1000 * 60 * 60));
             const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
             const segundos = Math.floor((diferencia % (1000 * 60)) / 1000);
-            
             document.getElementById('contadorTiempo').textContent = 
-                String(horas).padStart(2, '0') + ':' + 
-                String(minutos).padStart(2, '0') + ':' + 
-                String(segundos).padStart(2, '0');
+                String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0') + ':' + String(segundos).padStart(2, '0');
         }, 1000);
     }
-    // ---------------------------------------------------
 
     async function crearCuenta(e) {
         e.preventDefault(); 
@@ -289,28 +263,18 @@
         datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false };
         document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
         document.getElementById('btnAdmin').style.display = datosPerfil.es_admin ? 'block' : 'none';
-        
-        // Comprobamos si hay que arrancar el cronómetro antes de mostrar la pantalla
         await verificarEstadoJornada(); 
         cambiarPantalla('pantallaFichaje');
     }
 
-    // REGISTRO DE FICHAJE (SIN CERRAR SESIÓN)
     async function procesarFichaje(tipo, firmaCode = null) {
         if (!usuarioActual) return cerrarSesion();
-        
         const payload = { user_id: usuarioActual.id, email: usuarioActual.email, tipo: tipo };
         if (firmaCode) payload.firma = firmaCode; 
 
         const { error } = await cliente.from('fichajes').insert([payload]);
-        
-        if (error) {
-            alert("Error: " + error.message);
-        } else {
-            alert(`✅ ${tipo} registrada correctamente.`);
-            // En vez de cerrar sesión, refrescamos los botones y el cronómetro
-            verificarEstadoJornada();
-        }
+        if (error) alert("Error: " + error.message);
+        else { alert(`✅ ${tipo} registrada correctamente.`); verificarEstadoJornada(); }
     }
 
     async function cargarMisHoras() {
@@ -353,6 +317,7 @@
         else { alert("✅ Corrección guardada."); cargarPanelAdmin(); }
     }
 
+    // --- NUEVA LÓGICA DE PINTAR TABLA CON IMAGEN DE FIRMA ---
     function pintarTabla(idBody, datos, mostrarEmail) {
         const tbody = document.getElementById(idBody);
         tbody.innerHTML = '';
@@ -362,7 +327,16 @@
             const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
             let fila = `<tr>`;
             if(mostrarEmail) fila += `<td>${f.email.split('@')[0]}</td>`;
-            fila += `<td>${fObj.toLocaleDateString('es-ES')}</td><td>${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td><td class="${clase}">${f.tipo}</td></tr>`;
+            
+            // Si el fichaje tiene firma, mostramos la imagen, si no, un texto gris
+            let visualFirma = f.firma 
+                ? `<img src="${f.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;" alt="Firma">` 
+                : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
+
+            fila += `<td>${fObj.toLocaleDateString('es-ES')}</td>
+                     <td>${fObj.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td>
+                     <td class="${clase}">${f.tipo}</td>
+                     <td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
             tbody.innerHTML += fila;
         });
     }
