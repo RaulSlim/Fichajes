@@ -8,7 +8,7 @@
         * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
         body { background-color: #f4f4f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; color: #18181b; padding: 1rem; }
         
-        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 450px; text-align: center; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 500px; text-align: center; }
         h2 { margin-top: 0; margin-bottom: 0.5rem; }
         p.subtitle { color: #71717a; margin-bottom: 1.5rem; font-size: 0.9rem; }
         
@@ -34,13 +34,12 @@
         .nav-links { display: flex; justify-content: space-around; margin-top: 1.5rem; font-size: 0.85rem; }
         .nav-links span { cursor: pointer; color: #71717a; text-decoration: underline; }
 
-        /* TABLAS ACTUALIZADAS PARA MOSTRAR FIRMA */
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.8rem; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.75rem; text-align: left; }
         th, td { border-bottom: 1px solid #e4e4e7; padding: 0.5rem 0.2rem; vertical-align: middle; }
         th { background-color: #f4f4f5; font-weight: 600; }
         .tipo-entrada { color: #16a34a; font-weight: bold; }
         .tipo-salida { color: #ea580c; font-weight: bold; }
-        .tabla-container { max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
+        .tabla-container { max-height: 350px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #e4e4e7; border-radius: 6px;}
         .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; padding: 1rem; }
@@ -130,7 +129,8 @@
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem;">✏️ CORREGIR HORAS</button>
         </div>
         <div class="tabla-container">
-            <table><thead><tr><th>Email</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
+            <!-- AHORA MUESTRA TRABAJADOR Y DNI EN VEZ DE EMAIL -->
+            <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver al inicio</button>
     </div>
@@ -165,12 +165,7 @@
     const ctx = canvas.getContext('2d');
     let dibujando = false;
 
-    function ajustarCanvas() {
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-    }
-
+    function ajustarCanvas() { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width; canvas.height = rect.height; }
     function iniciarTrazo(e) { dibujando = true; ctx.beginPath(); moverTrazo(e); }
     function terminarTrazo() { dibujando = false; ctx.beginPath(); }
     function moverTrazo(e) {
@@ -216,10 +211,8 @@
 
     async function verificarEstadoJornada() {
         const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(1);
-        const btnEntrada = document.getElementById('btnEntrada');
-        const btnSalida = document.getElementById('btnSalida');
-        const contador = document.getElementById('contadorTiempo');
-        const texto = document.getElementById('textoEstado');
+        const btnEntrada = document.getElementById('btnEntrada'); const btnSalida = document.getElementById('btnSalida');
+        const contador = document.getElementById('contadorTiempo'); const texto = document.getElementById('textoEstado');
 
         if (data && data.length > 0 && data[0].tipo.includes('Entrada')) {
             btnEntrada.style.display = 'none'; btnSalida.style.display = 'block';
@@ -237,13 +230,11 @@
     function iniciarCronometro(fechaInicio) {
         if (intervaloContador) clearInterval(intervaloContador);
         intervaloContador = setInterval(() => {
-            const ahora = new Date();
-            const diferencia = ahora - fechaInicio;
+            const ahora = new Date(); const diferencia = ahora - fechaInicio;
             const horas = Math.floor(diferencia / (1000 * 60 * 60));
             const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
             const segundos = Math.floor((diferencia % (1000 * 60)) / 1000);
-            document.getElementById('contadorTiempo').textContent = 
-                String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0') + ':' + String(segundos).padStart(2, '0');
+            document.getElementById('contadorTiempo').textContent = String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0') + ':' + String(segundos).padStart(2, '0');
         }, 1000);
     }
 
@@ -279,13 +270,22 @@
 
     async function cargarMisHoras() {
         const { data } = await cliente.from('fichajes').select('*').eq('user_id', usuarioActual.id).order('fecha_hora', { ascending: false }).limit(20);
-        pintarTabla('tablaMisHoras', data, false);
+        pintarTabla('tablaMisHoras', data, false, {}); // Para la tabla personal no hace falta cruzar datos
         cambiarPantalla('pantallaHistorial');
     }
 
+    // AHORA CARGAMOS TAMBIÉN LOS EMPLEADOS PARA CRUZAR DATOS EN ADMIN
     async function cargarPanelAdmin() {
-        const { data } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: false }).limit(100);
-        pintarTabla('tablaTodosFichajes', data, true);
+        const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: false }).limit(100);
+        const { data: empleados } = await cliente.from('empleados').select('*');
+        
+        // Creamos un "diccionario" de correos -> datos del empleado
+        const mapaEmpleados = {};
+        if (empleados) {
+            empleados.forEach(emp => { mapaEmpleados[emp.email] = emp; });
+        }
+
+        pintarTabla('tablaTodosFichajes', fichajes, true, mapaEmpleados);
         cambiarPantalla('pantallaAdmin');
     }
 
@@ -317,8 +317,8 @@
         else { alert("✅ Corrección guardada."); cargarPanelAdmin(); }
     }
 
-    // --- NUEVA LÓGICA DE PINTAR TABLA CON IMAGEN DE FIRMA ---
-    function pintarTabla(idBody, datos, mostrarEmail) {
+    // FUNCIÓN PINTAR TABLA ACTUALIZADA CON NOMBRES Y DNI
+    function pintarTabla(idBody, datos, esAdmin, mapaEmpleados) {
         const tbody = document.getElementById(idBody);
         tbody.innerHTML = '';
         if(!datos) return;
@@ -326,9 +326,13 @@
             const fObj = new Date(f.fecha_hora);
             const clase = f.tipo.includes('Entrada') ? 'tipo-entrada' : 'tipo-salida';
             let fila = `<tr>`;
-            if(mostrarEmail) fila += `<td>${f.email.split('@')[0]}</td>`;
             
-            // Si el fichaje tiene firma, mostramos la imagen, si no, un texto gris
+            if(esAdmin) {
+                // Buscamos al empleado en el diccionario. Si por algún motivo se borró, mostramos su email.
+                const emp = mapaEmpleados[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '-' };
+                fila += `<td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td>`;
+            }
+            
             let visualFirma = f.firma 
                 ? `<img src="${f.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;" alt="Firma">` 
                 : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
@@ -341,16 +345,31 @@
         });
     }
 
+    // EXPORTAR CSV ACTUALIZADO CON NOMBRES Y DNI SEPARADOS
     async function exportarCSV() {
-        const { data } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: true });
-        if(!data || data.length === 0) return alert("No hay datos");
-        let csv = "Email,Fecha,Hora,Tipo\n";
-        data.forEach(f => {
+        const { data: fichajes } = await cliente.from('fichajes').select('*').order('fecha_hora', { ascending: true });
+        const { data: empleados } = await cliente.from('empleados').select('*');
+        if(!fichajes || fichajes.length === 0) return alert("No hay datos");
+
+        // Creamos el diccionario para cruzar
+        const mapa = {};
+        if (empleados) {
+            empleados.forEach(e => mapa[e.email] = e);
+        }
+
+        // Nuevas cabeceras
+        let csv = "Nombre,Apellidos,DNI,Fecha,Hora,Tipo\n";
+        
+        fichajes.forEach(f => {
+            const emp = mapa[f.email] || { nombre: f.email.split('@')[0], apellidos: '', dni: '' };
             const fObj = new Date(f.fecha_hora);
-            csv += `${f.email},${fObj.toLocaleDateString('es-ES')},${fObj.toLocaleTimeString('es-ES')},"${f.tipo}"\n`;
+            
+            // Añadimos comillas a nombre y apellidos por si tienen comas dentro
+            csv += `"${emp.nombre}","${emp.apellidos}","${emp.dni}",${fObj.toLocaleDateString('es-ES')},${fObj.toLocaleTimeString('es-ES')},"${f.tipo}"\n`;
         });
+        
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-        const a = document.createElement("a"); a.href = url; a.download = `Registro.csv`; a.click();
+        const a = document.createElement("a"); a.href = url; a.download = `Registro_Horas_Gastrobar.csv`; a.click();
     }
 
     async function cerrarSesion() {
