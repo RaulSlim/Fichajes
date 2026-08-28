@@ -26,6 +26,7 @@
         .btn-admin { background-color: #ef4444; color: white; margin-top: 1rem; }
         .btn-warning { background-color: #eab308; color: #18181b; }
         .btn-info { background-color: #0ea5e9; color: white; }
+        .btn-success { background-color: #10b981; color: white; }
         
         .link-text { color: #3b82f6; font-size: 0.9rem; cursor: pointer; text-decoration: underline; margin-top: 1rem; display: inline-block; }
 
@@ -55,6 +56,10 @@
         .cargo-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
         .badge-cocina { background: #fee2e2; color: #b91c1c; }
         .badge-sala { background: #dbeafe; color: #1d4ed8; }
+
+        /* Clases para la columna congelada del cuadrante general */
+        .sticky-col { position: sticky; left: 0; background: #f4f4f5; z-index: 2; border-right: 2px solid #d4d4d8; }
+        td.sticky-col { background: white; z-index: 1; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -152,7 +157,6 @@
         </div>
     </div>
 
-    <!-- MIS HORAS (Historial Agrupado) -->
     <div class="container pantalla" id="pantallaHistorial">
         <h2>Mis Fichajes</h2>
         <div class="tabla-container">
@@ -167,7 +171,9 @@
         <p class="subtitle">Auditoría y Horarios</p>
         
         <div class="actions" style="margin-top:0; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button class="btn btn-admin" onclick="cargarGestionPlantilla()" style="margin:0; font-size: 0.85rem; grid-column: span 2;">👥 GESTIÓN DE PLANTILLA Y ROLES</button>
+            <button class="btn btn-admin" onclick="cargarGestionPlantilla()" style="margin:0; font-size: 0.85rem;">👥 ROLES</button>
+            <!-- NUEVO BOTÓN PARA CUADRANTE GENERAL -->
+            <button class="btn btn-success" onclick="abrirCuadranteGeneral()" style="margin:0; font-size: 0.85rem;">📅 CUADRANTE</button>
             
             <div class="form-group" style="grid-column: span 2; margin-bottom: 0; margin-top: 10px;">
                 <label style="text-align: center; color: #71717a;">Selecciona el mes de fichajes:</label>
@@ -178,7 +184,6 @@
             <button class="btn btn-warning" onclick="abrirCorreccionAdmin()" style="margin:0; font-size: 0.85rem; grid-column: span 2;">✏️ CORREGIR HORAS MANUAL</button>
         </div>
 
-        <!-- TABLA ADMIN AGRUPADA -->
         <div class="tabla-container">
             <table><thead><tr><th>Trabajador</th><th>DNI</th><th>Fecha</th><th>H. Entrada</th><th>H. Salida</th><th>Firma</th></tr></thead><tbody id="tablaTodosFichajes"></tbody></table>
         </div>
@@ -196,6 +201,30 @@
             </table>
         </div>
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
+    </div>
+
+    <!-- NUEVA PANTALLA: CUADRANTE GENERAL -->
+    <div class="container pantalla" id="pantallaCuadranteGeneral" style="max-width: 95vw;">
+        <h2>Cuadrante de Plantilla</h2>
+        
+        <div class="form-group" style="max-width: 250px; margin: 0 auto 1rem auto;">
+            <input type="month" id="filtroMesCuadrante" onchange="pintarCuadranteGeneral()" style="text-align: center; font-weight: bold;">
+        </div>
+
+        <div class="tabla-container" style="max-height: 60vh; overflow-x: auto; overflow-y: auto;">
+            <table style="font-size: 0.75rem; white-space: nowrap;">
+                <thead id="headCuadrante"></thead>
+                <tbody id="bodyCuadrante"></tbody>
+            </table>
+        </div>
+
+        <div style="font-size: 0.75rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-18:30) | <span style="color:#ea580c; font-weight:bold;">T</span> = Tarde (11:30-21:30)<br>
+            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> = Aper (8:30-18:30) | <span style="color:#ea580c; font-weight:bold;">C</span> = Cierre (11:30-21:30) | <span style="color:#2563eb; font-weight:bold;">Ap</span> = Apoyo (09:00-19:00)<br>
+            <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
+        </div>
+
+        <button class="btn btn-secondary" style="margin-top: 1rem; max-width: 300px;" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
     </div>
 
     <!-- MODAL PARA ASIGNAR ROL -->
@@ -252,9 +281,7 @@
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
 
-    // --- AGRUPADOR INTELIGENTE DE JORNADAS (Para juntar Entrada y Salida en una línea) ---
     function procesarJornadas(datosRaw) {
-        // Ordenamos todos los clics de más antiguo a más nuevo
         const datos = [...datosRaw].sort((a,b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
         const jornadas = [];
         const turnosAbiertos = {};
@@ -264,35 +291,22 @@
             const esSalida = f.tipo.includes('Salida');
             
             if (esEntrada) {
-                // Si ya había una entrada sin cerrar, la guardamos forzosamente como "En curso"
                 if(turnosAbiertos[f.email]) jornadas.push(turnosAbiertos[f.email]);
-                
-                turnosAbiertos[f.email] = {
-                    email: f.email,
-                    entrada: f.fecha_hora,
-                    salida: null,
-                    firma: f.firma,
-                    corregida: f.tipo.includes('Corregida')
-                };
+                turnosAbiertos[f.email] = { email: f.email, entrada: f.fecha_hora, salida: null, firma: f.firma, corregida: f.tipo.includes('Corregida') };
             } else if (esSalida) {
                 if(turnosAbiertos[f.email]) {
                     turnosAbiertos[f.email].salida = f.fecha_hora;
-                    if(f.firma) turnosAbiertos[f.email].firma = f.firma; // Guardamos la firma de la salida
+                    if(f.firma) turnosAbiertos[f.email].firma = f.firma; 
                     if(f.tipo.includes('Corregida')) turnosAbiertos[f.email].corregida = true;
-                    
                     jornadas.push(turnosAbiertos[f.email]);
-                    turnosAbiertos[f.email] = null; // Cerramos el turno
+                    turnosAbiertos[f.email] = null; 
                 } else {
-                    // Salida huérfana (Fichó salida sin haber fichado entrada)
                     jornadas.push({ email: f.email, entrada: null, salida: f.fecha_hora, firma: f.firma, corregida: f.tipo.includes('Corregida') });
                 }
             }
         });
         
-        // Volcamos las que se quedaron abiertas
         Object.values(turnosAbiertos).forEach(j => { if(j) jornadas.push(j); });
-        
-        // Devolvemos la lista ordenada del más nuevo al más antiguo para la tabla
         return jornadas.sort((a,b) => new Date(b.entrada || b.salida) - new Date(a.entrada || a.salida));
     }
 
@@ -433,6 +447,75 @@
         tbody.innerHTML = htmlTabla;
     }
 
+    // --- NUEVO: CUADRANTE GENERAL (ADMIN) ---
+    async function abrirCuadranteGeneral() {
+        const inputMes = document.getElementById('filtroMesCuadrante');
+        if (!inputMes.value) { 
+            const now = new Date(); 
+            inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; 
+        }
+        await pintarCuadranteGeneral();
+        cambiarPantalla('pantallaCuadranteGeneral');
+    }
+
+    async function pintarCuadranteGeneral() {
+        const inputMes = document.getElementById('filtroMesCuadrante').value;
+        if (!inputMes) return;
+        const [anyo, mes] = inputMes.split('-');
+        const diasEnMes = new Date(anyo, mes, 0).getDate();
+        const hoyReal = new Date();
+
+        const { data: empleados } = await cliente.from('empleados').select('*').order('cargo').order('nombre');
+
+        const thead = document.getElementById('headCuadrante');
+        const tbody = document.getElementById('bodyCuadrante');
+        
+        let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
+        for (let i = 1; i <= diasEnMes; i++) {
+            const esHoy = (i === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
+            const estiloBg = esHoy ? 'background:#fef08a;' : '';
+            htmlHead += `<th style="${estiloBg}">${i}</th>`;
+        }
+        htmlHead += '</tr>';
+        thead.innerHTML = htmlHead;
+
+        let htmlBody = '';
+        if (empleados) {
+            empleados.forEach(emp => {
+                if (emp.es_admin) return;
+
+                let rowHtml = `<tr><td class="sticky-col">${emp.nombre}</td>`;
+                
+                for (let dia = 1; dia <= diasEnMes; dia++) {
+                    const fechaEval = new Date(anyo, mes - 1, dia);
+                    let turnoAbrev = '<span style="color:#d4d4d8;">L</span>';
+                    
+                    if (emp.cargo && emp.rol_turno && emp.fecha_ancla) {
+                        const res = calcularTurnoParaFecha(emp.cargo, emp.rol_turno, emp.fecha_ancla, fechaEval);
+                        if (res && res.turno !== 'Libre') {
+                            if (emp.cargo === 'Cocinero') {
+                                if (res.turno.includes('08:30')) turnoAbrev = '<span style="color:#16a34a; font-weight:bold;">M</span>';
+                                else if (res.turno.includes('11:30')) turnoAbrev = '<span style="color:#ea580c; font-weight:bold;">T</span>';
+                            } else if (emp.cargo === 'Camarero') {
+                                if (res.turno.includes('Apertura')) turnoAbrev = '<span style="color:#16a34a; font-weight:bold;">A</span>';
+                                else if (res.turno.includes('Cierre')) turnoAbrev = '<span style="color:#ea580c; font-weight:bold;">C</span>';
+                                else if (res.turno.includes('Apoyo')) turnoAbrev = '<span style="color:#2563eb; font-weight:bold;">Ap</span>';
+                            }
+                        }
+                    }
+                    const esHoy = (dia === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
+                    const estiloBg = esHoy ? 'background:#fef9c3;' : '';
+                    
+                    rowHtml += `<td style="text-align:center; ${estiloBg}">${turnoAbrev}</td>`;
+                }
+                rowHtml += '</tr>';
+                htmlBody += rowHtml;
+            });
+        }
+        tbody.innerHTML = htmlBody;
+    }
+    // -----------------------------------------
+
     async function cargarDatosUsuario(user) {
         usuarioActual = user;
         const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
@@ -509,7 +592,6 @@
         alert("Cuenta creada. Inicia sesión."); cambiarPantalla('pantallaLogin');
     }
 
-    // --- TABLAS INTELIGENTES DE HISTORIAL Y ADMIN ---
     async function cargarMisHoras() {
         const { data } = await cliente.from('fichajes').select('*').eq('email', usuarioActual.email).order('fecha_hora', { ascending: false });
         const jornadas = procesarJornadas(data || []);
@@ -587,16 +669,35 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; 
+        const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
+        const hoy = new Date(); 
+        const diaSemana = hoy.getDay() || 7; 
+        const lunes = new Date(hoy); 
+        lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando).select();
-        if (error) alert("Error al guardar: " + error.message);
-        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
+        const { data, error } = await cliente
+            .from('empleados')
+            .update({ 
+                cargo: cargo, 
+                rol_turno: rol, 
+                fecha_ancla: fechaAncla 
+            })
+            .eq('email', emailEmpleadoEditando)
+            .select();
+
+        if (error) {
+            alert("Error al guardar: " + error.message);
+        } else if (!data || data.length === 0) {
+            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
+        } else {
+            alert("✅ Rol y turno asignados correctamente.");
+            document.getElementById('modalAsignarRol').style.display = 'none'; 
+            cargarGestionPlantilla(); 
+        }
     }
 
     async function abrirCorreccionAdmin() {
@@ -635,7 +736,7 @@
         if(!fichajes || fichajes.length === 0) return alert("No hay datos en este mes para exportar.");
         
         const mapa = {}; if (empleados) empleados.forEach(e => mapa[e.email] = e);
-        const jornadas = procesarJornadas(fichajes); // Agrupamos para el PDF
+        const jornadas = procesarJornadas(fichajes); 
         
         const filas = []; const firmasBase64 = [];
         jornadas.forEach(j => {
@@ -644,10 +745,7 @@
             const strFecha = fObj.toLocaleDateString('es-ES');
             const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
             const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : 'En curso';
-            
-            // Si es corregida, le añadimos un (C) pequeñito a la fecha
             const fechaPdf = j.corregida ? strFecha + ' (C)' : strFecha;
-            
             filas.push([`${emp.nombre} ${emp.apellidos}`, emp.dni, fechaPdf, hEnt, hSal, ""]);
             firmasBase64.push(j.firma || null);
         });
