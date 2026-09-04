@@ -57,7 +57,6 @@
         .badge-cocina { background: #fee2e2; color: #b91c1c; }
         .badge-sala { background: #dbeafe; color: #1d4ed8; }
 
-        /* Clases para la columna congelada del cuadrante general */
         .sticky-col { position: sticky; left: 0; background: #f4f4f5; z-index: 2; border-right: 2px solid #d4d4d8; }
         td.sticky-col { background: white; z-index: 1; font-weight: 600; }
     </style>
@@ -172,7 +171,6 @@
         
         <div class="actions" style="margin-top:0; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button class="btn btn-admin" onclick="cargarGestionPlantilla()" style="margin:0; font-size: 0.85rem;">👥 ROLES</button>
-            <!-- NUEVO BOTÓN PARA CUADRANTE GENERAL -->
             <button class="btn btn-success" onclick="abrirCuadranteGeneral()" style="margin:0; font-size: 0.85rem;">📅 CUADRANTE</button>
             
             <div class="form-group" style="grid-column: span 2; margin-bottom: 0; margin-top: 10px;">
@@ -341,16 +339,34 @@
     function cambiarPantalla(idDestino) { document.querySelectorAll('.pantalla').forEach(p => p.style.display = 'none'); document.getElementById(idDestino).style.display = 'block'; }
 
     async function checkUser() {
-        const { data: { session } } = await cliente.auth.getSession();
-        if (session && session.user) cargarDatosUsuario(session.user);
+        const { data: { session }, error } = await cliente.auth.getSession();
+        if (error) console.error("Error al obtener sesión", error);
+        if (session && session.user) {
+            await cargarDatosUsuario(session.user);
+        } else {
+            cambiarPantalla('pantallaLogin');
+        }
     }
-    checkUser();
+    
+    // Llamar a checkUser al cargar la página
+    document.addEventListener("DOMContentLoaded", checkUser);
 
     async function iniciarSesion(e) {
         e.preventDefault(); 
-        const { data, error } = await cliente.auth.signInWithPassword({ email: document.getElementById('loginEmail').value, password: document.getElementById('loginPassword').value });
-        if (error) alert("Error: Credenciales incorrectas.");
-        else cargarDatosUsuario(data.user);
+        const email = document.getElementById('loginEmail').value;
+        const pass = document.getElementById('loginPassword').value;
+        try {
+            const { data, error } = await cliente.auth.signInWithPassword({ email: email, password: pass });
+            if (error) {
+                alert("Error: Credenciales incorrectas.");
+                console.error(error);
+            } else if(data && data.user) {
+                await cargarDatosUsuario(data.user);
+            }
+        } catch(err) {
+            alert("Error al iniciar sesión.");
+            console.error(err);
+        }
     }
 
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaAnclaStr, fechaEvaluada) {
@@ -447,7 +463,7 @@
         tbody.innerHTML = htmlTabla;
     }
 
-    // --- NUEVO: CUADRANTE GENERAL (ADMIN) ---
+    // --- CUADRANTE GENERAL (ADMIN) ---
     async function abrirCuadranteGeneral() {
         const inputMes = document.getElementById('filtroMesCuadrante');
         if (!inputMes.value) { 
@@ -465,7 +481,12 @@
         const diasEnMes = new Date(anyo, mes, 0).getDate();
         const hoyReal = new Date();
 
-        const { data: empleados } = await cliente.from('empleados').select('*').order('cargo').order('nombre');
+        const { data: empleados, error } = await cliente.from('empleados').select('*').order('cargo').order('nombre');
+        
+        if (error) {
+            console.error("Error al cargar empleados para el cuadrante:", error);
+            return;
+        }
 
         const thead = document.getElementById('headCuadrante');
         const tbody = document.getElementById('bodyCuadrante');
@@ -514,21 +535,28 @@
         }
         tbody.innerHTML = htmlBody;
     }
-    // -----------------------------------------
 
     async function cargarDatosUsuario(user) {
         usuarioActual = user;
-        const { data } = await cliente.from('empleados').select('*').eq('email', user.email).single();
-        datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null, fecha_ancla: null };
-        if (datosPerfil.es_admin) { 
-            cargarPanelAdmin(); 
-        } else {
-            document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
-            const inputMes = document.getElementById('filtroMesEmpleado');
-            if (inputMes && !inputMes.value) {
-                const now = new Date(); inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        try {
+            const { data, error } = await cliente.from('empleados').select('*').eq('email', user.email).single();
+            if(error) console.error("Error al obtener perfil", error);
+            datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null, fecha_ancla: null };
+            
+            if (datosPerfil.es_admin) { 
+                await cargarPanelAdmin(); 
+            } else {
+                document.getElementById('nombreUsuario').textContent = datosPerfil.nombre;
+                const inputMes = document.getElementById('filtroMesEmpleado');
+                if (inputMes && !inputMes.value) {
+                    const now = new Date(); inputMes.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                }
+                pintarCalendarioEmpleado(); 
+                await revisarCorreccionesPendientes(); 
+                cambiarPantalla('pantallaFichaje');
             }
-            pintarCalendarioEmpleado(); await revisarCorreccionesPendientes(); cambiarPantalla('pantallaFichaje');
+        } catch(err) {
+            console.error("Error en cargarDatosUsuario", err);
         }
     }
 
@@ -588,7 +616,14 @@
         const email = document.getElementById('regEmail').value;
         const { error } = await cliente.auth.signUp({ email: email, password: document.getElementById('regPass').value });
         if (error) return alert("Error: " + error.message);
-        await cliente.from('empleados').insert([{ email: email, nombre: document.getElementById('regNombre').value, apellidos: document.getElementById('regApellidos').value, dni: document.getElementById('regDni').value }]);
+        
+        await cliente.from('empleados').insert([{ 
+            email: email, 
+            nombre: document.getElementById('regNombre').value, 
+            apellidos: document.getElementById('regApellidos').value, 
+            dni: document.getElementById('regDni').value 
+        }]);
+        
         alert("Cuenta creada. Inicia sesión."); cambiarPantalla('pantallaLogin');
     }
 
@@ -624,19 +659,20 @@
         
         const jornadas = procesarJornadas(fichajes || []);
         const tbody = document.getElementById('tablaTodosFichajes'); tbody.innerHTML = '';
-        if(jornadas.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; return; }
-        
-        jornadas.forEach(j => {
-            const emp = mapaEmpleados[j.email] || { nombre: j.email.split('@')[0], apellidos: '', dni: '-' };
-            const fObj = new Date(j.entrada || j.salida);
-            const strFecha = fObj.toLocaleDateString('es-ES');
-            const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
-            const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '<span style="color:#eab308;">En curso</span>';
-            const indicativo = j.corregida ? '<br><span style="font-size:0.65rem; color:#ea580c;">(Corregida)</span>' : '';
-            let visualFirma = j.firma ? `<img src="${j.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
-            
-            tbody.innerHTML += `<tr><td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td><td>${strFecha}${indicativo}</td><td>${hEnt}</td><td>${hSal}</td><td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
-        });
+        if(jornadas.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay fichajes en este mes.</td></tr>'; 
+        } else {
+            jornadas.forEach(j => {
+                const emp = mapaEmpleados[j.email] || { nombre: j.email.split('@')[0], apellidos: '', dni: '-' };
+                const fObj = new Date(j.entrada || j.salida);
+                const strFecha = fObj.toLocaleDateString('es-ES');
+                const hEnt = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '--:--';
+                const hSal = j.salida ? new Date(j.salida).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '<span style="color:#eab308;">En curso</span>';
+                const indicativo = j.corregida ? '<br><span style="font-size:0.65rem; color:#ea580c;">(Corregida)</span>' : '';
+                let visualFirma = j.firma ? `<img src="${j.firma}" style="height: 30px; border-radius: 4px; border: 1px solid #e4e4e7; background: #fff;">` : `<span style="color:#a1a1aa; font-size: 0.75rem;">Sin firma</span>`;
+                
+                tbody.innerHTML += `<tr><td><strong>${emp.nombre} ${emp.apellidos}</strong></td><td>${emp.dni}</td><td>${strFecha}${indicativo}</td><td>${hEnt}</td><td>${hSal}</td><td style="text-align:center; vertical-align:middle;">${visualFirma}</td></tr>`;
+            });
+        }
         cambiarPantalla('pantallaAdmin');
     }
 
@@ -669,35 +705,16 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; 
-        const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); 
-        const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); 
-        lunes.setDate(hoy.getDate() - diaSemana + 1);
+        const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
+        const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { data, error } = await cliente
-            .from('empleados')
-            .update({ 
-                cargo: cargo, 
-                rol_turno: rol, 
-                fecha_ancla: fechaAncla 
-            })
-            .eq('email', emailEmpleadoEditando)
-            .select();
-
-        if (error) {
-            alert("Error al guardar: " + error.message);
-        } else if (!data || data.length === 0) {
-            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
-        } else {
-            alert("✅ Rol y turno asignados correctamente.");
-            document.getElementById('modalAsignarRol').style.display = 'none'; 
-            cargarGestionPlantilla(); 
-        }
+        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando).select();
+        if (error) alert("Error al guardar: " + error.message);
+        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
     }
 
     async function abrirCorreccionAdmin() {
