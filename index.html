@@ -100,9 +100,10 @@
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
+        <!-- BOTONES CON BARRERA GPS -->
         <div class="actions">
-            <button id="btnEntrada" class="btn btn-entrada" onclick="procesarFichaje('Entrada')">🟢 FICHAJE DE ENTRADA</button>
-            <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="abrirModalFirma()">🔴 FINALIZAR TURNO</button>
+            <button id="btnEntrada" class="btn btn-entrada" onclick="verificarGPSAntesDeFichar('Entrada')">🟢 FICHAJE DE ENTRADA</button>
+            <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
             <button class="btn btn-info" onclick="abrirPantallaCalendarioEmpleado()">📅 MI CALENDARIO MENSUAL</button>
         </div>
         
@@ -201,7 +202,7 @@
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
     </div>
 
-    <!-- NUEVA PANTALLA: CUADRANTE GENERAL -->
+    <!-- PANTALLA: CUADRANTE GENERAL -->
     <div class="container pantalla" id="pantallaCuadranteGeneral" style="max-width: 95vw;">
         <h2>Cuadrante de Plantilla</h2>
         
@@ -269,6 +270,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+    // ==========================================
+    // 📍 CONFIGURACIÓN DEL LOCAL (GEOFENCING)
+    // ==========================================
+    const LATITUD_LOCAL = 38.984115;  
+    const LONGITUD_LOCAL = -3.934529; 
+    const RADIO_PERMITIDO = 60;     
+    // ==========================================
+
     const supabaseUrl = 'https://ztdjmifkfyxfrrgksrtj.supabase.co'; 
     const supabaseKey = 'sb_publishable_lLAxg6ftOlVvoPXgImaMRg_M0oSkpHQ';
     const cliente = supabase.createClient(supabaseUrl, supabaseKey);
@@ -278,6 +287,65 @@
     let intervaloContador = null;
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
+
+    // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS (Haversine) ---
+    function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // Radio de la Tierra en metros
+        const rad = Math.PI / 180;
+        const dLat = (lat2 - lat1) * rad;
+        const dLon = (lon2 - lon1) * rad;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    // --- FUNCIÓN BARRERA DE UBICACIÓN ---
+    function verificarGPSAntesDeFichar(tipo) {
+        if (!navigator.geolocation) {
+            alert("Tu teléfono o navegador no soporta geolocalización. No puedes fichar.");
+            return;
+        }
+
+        const btn = tipo === 'Entrada' ? document.getElementById('btnEntrada') : document.getElementById('btnSalida');
+        const textoOriginal = btn.innerHTML;
+        btn.innerHTML = '📍 Verificando ubicación...';
+        btn.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const latEmpleado = position.coords.latitude;
+                const lonEmpleado = position.coords.longitude;
+
+                const distancia = calcularDistanciaGPS(LATITUD_LOCAL, LONGITUD_LOCAL, latEmpleado, lonEmpleado);
+
+                btn.innerHTML = textoOriginal;
+                btn.disabled = false;
+
+                if (distancia <= RADIO_PERMITIDO) {
+                    if (tipo === 'Entrada') {
+                        procesarFichaje('Entrada');
+                    } else if (tipo === 'Salida') {
+                        abrirModalFirma();
+                    }
+                } else {
+                    alert(`❌ UBICACIÓN DENEGADA.\n\nEstás a ${Math.round(distancia)} metros del restaurante.\nEl límite máximo son ${RADIO_PERMITIDO} metros.\n\nDebes estar físicamente en la puerta o dentro del local para poder fichar.`);
+                }
+            },
+            (error) => {
+                btn.innerHTML = textoOriginal;
+                btn.disabled = false;
+                if (error.code === error.PERMISSION_DENIED) {
+                    alert("❌ Has denegado el acceso al GPS de tu móvil.\nDebes ir a los ajustes de tu navegador y permitir la ubicación para esta página.");
+                } else {
+                    alert("❌ Error al obtener tu ubicación. Asegúrate de tener el GPS activado y estar al aire libre o cerca de una ventana.");
+                }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+
 
     function procesarJornadas(datosRaw) {
         const datos = [...datosRaw].sort((a,b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
@@ -348,7 +416,6 @@
         }
     }
     
-    // Llamar a checkUser al cargar la página
     document.addEventListener("DOMContentLoaded", checkUser);
 
     async function iniciarSesion(e) {
@@ -705,16 +772,35 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; 
+        const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana + 1);
+        const hoy = new Date(); 
+        const diaSemana = hoy.getDay() || 7; 
+        const lunes = new Date(hoy); 
+        lunes.setDate(hoy.getDate() - diaSemana + 1);
         const fechaAncla = lunes.toISOString().split('T')[0];
 
-        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol, fecha_ancla: fechaAncla }).eq('email', emailEmpleadoEditando).select();
-        if (error) alert("Error al guardar: " + error.message);
-        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
+        const { data, error } = await cliente
+            .from('empleados')
+            .update({ 
+                cargo: cargo, 
+                rol_turno: rol, 
+                fecha_ancla: fechaAncla 
+            })
+            .eq('email', emailEmpleadoEditando)
+            .select();
+
+        if (error) {
+            alert("Error al guardar: " + error.message);
+        } else if (!data || data.length === 0) {
+            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
+        } else {
+            alert("✅ Rol y turno asignados correctamente.");
+            document.getElementById('modalAsignarRol').style.display = 'none'; 
+            cargarGestionPlantilla(); 
+        }
     }
 
     async function abrirCorreccionAdmin() {
