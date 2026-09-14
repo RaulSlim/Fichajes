@@ -241,7 +241,7 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Número de Rol (Ciclo de 4 semanas)</label>
+                <label>Número de Rol (Ciclo 4 semanas)</label>
                 <select id="selectRol">
                     <option value="">Selecciona rol...</option>
                 </select>
@@ -290,13 +290,11 @@
 
     // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS (Haversine) ---
     function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // Radio de la Tierra en metros
+        const R = 6371e3;
         const rad = Math.PI / 180;
         const dLat = (lat2 - lat1) * rad;
         const dLon = (lon2 - lon1) * rad;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon/2) * Math.sin(dLon/2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c; 
     }
@@ -317,18 +315,13 @@
             (position) => {
                 const latEmpleado = position.coords.latitude;
                 const lonEmpleado = position.coords.longitude;
-
                 const distancia = calcularDistanciaGPS(LATITUD_LOCAL, LONGITUD_LOCAL, latEmpleado, lonEmpleado);
-
                 btn.innerHTML = textoOriginal;
                 btn.disabled = false;
 
                 if (distancia <= RADIO_PERMITIDO) {
-                    if (tipo === 'Entrada') {
-                        procesarFichaje('Entrada');
-                    } else if (tipo === 'Salida') {
-                        abrirModalFirma();
-                    }
+                    if (tipo === 'Entrada') { procesarFichaje('Entrada'); } 
+                    else if (tipo === 'Salida') { abrirModalFirma(); }
                 } else {
                     alert(`❌ UBICACIÓN DENEGADA.\n\nEstás a ${Math.round(distancia)} metros del restaurante.\nEl límite máximo son ${RADIO_PERMITIDO} metros.\n\nDebes estar físicamente en la puerta o dentro del local para poder fichar.`);
                 }
@@ -348,13 +341,10 @@
 
     function procesarJornadas(datosRaw) {
         const datos = [...datosRaw].sort((a,b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
-        const jornadas = [];
-        const turnosAbiertos = {};
-        
+        const jornadas = []; const turnosAbiertos = {};
         datos.forEach(f => {
             const esEntrada = f.tipo.includes('Entrada');
             const esSalida = f.tipo.includes('Salida');
-            
             if (esEntrada) {
                 if(turnosAbiertos[f.email]) jornadas.push(turnosAbiertos[f.email]);
                 turnosAbiertos[f.email] = { email: f.email, entrada: f.fecha_hora, salida: null, firma: f.firma, corregida: f.tipo.includes('Corregida') };
@@ -370,27 +360,20 @@
                 }
             }
         });
-        
         Object.values(turnosAbiertos).forEach(j => { if(j) jornadas.push(j); });
         return jornadas.sort((a,b) => new Date(b.entrada || b.salida) - new Date(a.entrada || a.salida));
     }
 
 
     function inicializarCanvas(idCanvas) {
-        const canvas = document.getElementById(idCanvas);
-        const ctx = canvas.getContext('2d');
-        let dibujando = false;
+        const canvas = document.getElementById(idCanvas); const ctx = canvas.getContext('2d'); let dibujando = false;
         function iniciar(e) { dibujando = true; ctx.beginPath(); mover(e); }
         function terminar() { dibujando = false; ctx.beginPath(); }
         function mover(e) {
-            if (!dibujando) return;
-            e.preventDefault(); 
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            if (!dibujando) return; e.preventDefault(); 
+            const rect = canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#18181b';
-            ctx.lineTo(clientX - rect.left, clientY - rect.top);
-            ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
+            ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
         }
         canvas.addEventListener('mousedown', iniciar); canvas.addEventListener('mouseup', terminar); canvas.addEventListener('mousemove', mover);
         canvas.addEventListener('touchstart', iniciar, {passive: false}); canvas.addEventListener('touchend', terminar); canvas.addEventListener('touchmove', mover, {passive: false});
@@ -408,11 +391,8 @@
     async function checkUser() {
         const { data: { session }, error } = await cliente.auth.getSession();
         if (error) console.error("Error al obtener sesión", error);
-        if (session && session.user) {
-            await cargarDatosUsuario(session.user);
-        } else {
-            cambiarPantalla('pantallaLogin');
-        }
+        if (session && session.user) { await cargarDatosUsuario(session.user); } 
+        else { cambiarPantalla('pantallaLogin'); }
     }
     
     document.addEventListener("DOMContentLoaded", checkUser);
@@ -423,37 +403,36 @@
         const pass = document.getElementById('loginPassword').value;
         try {
             const { data, error } = await cliente.auth.signInWithPassword({ email: email, password: pass });
-            if (error) {
-                alert("Error: Credenciales incorrectas.");
-                console.error(error);
-            } else if(data && data.user) {
-                await cargarDatosUsuario(data.user);
-            }
-        } catch(err) {
-            alert("Error al iniciar sesión.");
-            console.error(err);
-        }
+            if (error) { alert("Error: Credenciales incorrectas."); } 
+            else if(data && data.user) { await cargarDatosUsuario(data.user); }
+        } catch(err) { alert("Error al iniciar sesión."); }
     }
 
-    // --- NUEVO CÁLCULO MATEMÁTICO: CICLOS UNIVERSALES DE 4 SEMANAS ---
-    function calcularTurnoParaFecha(cargo, rolAsignado, fechaAnclaStr, fechaEvaluada) {
-        if (!cargo || !rolAsignado || !fechaAnclaStr) return null;
+    // ==========================================
+    // CÁLCULO DE TURNOS CON FECHA UNIVERSAL
+    // (Anclado eternamente al 31 de Agosto de 2026)
+    // ==========================================
+    function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
+        if (!cargo || !rolAsignado) return null;
         
-        // Ajustamos la fecha al mediodía para que los cambios de hora (verano/invierno) no descuadren los días
+        // FECHA UNIVERSAL INQUEBRANTABLE: Lunes 31 de Agosto de 2026 a las 12:00 del mediodía
+        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); 
+        
         const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
-        const ancla = new Date(fechaAnclaStr); ancla.setHours(12,0,0,0);
         
-        const diffTime = hoy - ancla;
+        const diffTime = hoy - EPOCH;
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const semanasTranscurridas = Math.floor(diffDays / 7);
         // Cada 4 semanas exactas se cambia de fase
-        const fase = Math.floor(semanasTranscurridas / 4); 
+        const fase = Math.floor(semanasTranscurridas / 4);
+        
         const diaSemana = hoy.getDay() || 7; 
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
             let cicloActual = 'A';
-            const moduloFase = ((fase % 2) + 2) % 2;
+            const moduloFase = ((fase % 2) + 2) % 2; // Fórmula segura para números negativos
+            
             if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
             else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
 
@@ -494,12 +473,12 @@
         const subtitulo = document.getElementById('subtituloCuadrante'); const tbody = document.getElementById('tablaCalendarioSemana');
         const inputMes = document.getElementById('filtroMesEmpleado');
 
-        if (!datosPerfil.cargo || !datosPerfil.rol_turno || !datosPerfil.fecha_ancla) {
+        if (!datosPerfil.cargo || !datosPerfil.rol_turno) {
             if (divInfo) divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
             tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>'; return;
         }
 
-        const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, new Date());
+        const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, new Date());
         if (infoHoy && divInfo && txtTurno) {
             divInfo.style.display = 'block';
             if (infoHoy.turno === 'Libre') {
@@ -523,7 +502,7 @@
         for (let dia = 1; dia <= diasEnMes; dia++) {
             const fechaEvaluada = new Date(anyo, mes - 1, dia);
             const nombreDia = nombresDias[fechaEvaluada.getDay()];
-            const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, datosPerfil.fecha_ancla, fechaEvaluada);
+            const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, fechaEvaluada);
             const esHoy = (fechaEvaluada.getDate() === hoyReal.getDate() && fechaEvaluada.getMonth() === hoyReal.getMonth() && fechaEvaluada.getFullYear() === hoyReal.getFullYear());
             const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
             const txtCol = (res && res.turno !== 'Libre') ? res.turno : '<span style="color:#9ca3af;">Día Libre</span>';
@@ -553,11 +532,6 @@
 
         const { data: empleados, error } = await cliente.from('empleados').select('*').order('cargo').order('nombre');
         
-        if (error) {
-            console.error("Error al cargar empleados para el cuadrante:", error);
-            return;
-        }
-
         const thead = document.getElementById('headCuadrante');
         const tbody = document.getElementById('bodyCuadrante');
         
@@ -581,8 +555,8 @@
                     const fechaEval = new Date(anyo, mes - 1, dia);
                     let turnoAbrev = '<span style="color:#d4d4d8;">L</span>';
                     
-                    if (emp.cargo && emp.rol_turno && emp.fecha_ancla) {
-                        const res = calcularTurnoParaFecha(emp.cargo, emp.rol_turno, emp.fecha_ancla, fechaEval);
+                    if (emp.cargo && emp.rol_turno) {
+                        const res = calcularTurnoParaFecha(emp.cargo, emp.rol_turno, fechaEval);
                         if (res && res.turno !== 'Libre') {
                             if (emp.cargo === 'Cocinero') {
                                 if (res.turno.includes('08:30')) turnoAbrev = '<span style="color:#16a34a; font-weight:bold;">M</span>';
@@ -610,8 +584,7 @@
         usuarioActual = user;
         try {
             const { data, error } = await cliente.from('empleados').select('*').eq('email', user.email).single();
-            if(error) console.error("Error al obtener perfil", error);
-            datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null, fecha_ancla: null };
+            datosPerfil = data || { nombre: user.email.split('@')[0], es_admin: false, cargo: null, rol_turno: null };
             
             if (datosPerfil.es_admin) { 
                 await cargarPanelAdmin(); 
@@ -774,41 +747,21 @@
         else if (cargo === 'Camarero') { for(let i=1; i<=5; i++) selectRol.innerHTML += `<option value="Rol ${i}">Rol ${i}</option>`; }
     }
 
-    // --- NUEVO SISTEMA DE GUARDADO CON LA FECHA UNIVERSAL (31/08/2026) ---
     async function guardarRolEmpleado() {
         const cargo = document.getElementById('selectCargo').value; 
         const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        // Calculamos a qué bloque de 4 semanas pertenece el día de hoy
-        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // 31 de Agosto de 2026
-        const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
-        let fechaAnclaStr = "2026-08-31";
-        
-        if (hoy >= EPOCH) {
-            const diffTime = hoy - EPOCH;
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            const ciclosPasados = Math.floor(diffDays / 28);
-            const fechaAncla = new Date(EPOCH.getTime() + (ciclosPasados * 28 * 24 * 60 * 60 * 1000));
-            
-            const offset = fechaAncla.getTimezoneOffset() * 60000;
-            fechaAnclaStr = new Date(fechaAncla.getTime() - offset).toISOString().split('T')[0];
-        }
-
         const { data, error } = await cliente
             .from('empleados')
-            .update({ 
-                cargo: cargo, 
-                rol_turno: rol, 
-                fecha_ancla: fechaAnclaStr 
-            })
+            .update({ cargo: cargo, rol_turno: rol })
             .eq('email', emailEmpleadoEditando)
             .select();
 
         if (error) {
             alert("Error al guardar: " + error.message);
         } else if (!data || data.length === 0) {
-            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase como te indiqué.");
+            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase.");
         } else {
             alert("✅ Rol y turno asignados correctamente.");
             document.getElementById('modalAsignarRol').style.display = 'none'; 
