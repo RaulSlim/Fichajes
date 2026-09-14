@@ -241,7 +241,7 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Número de Rol (Ciclo 4 semanas)</label>
+                <label>Número de Rol (Ciclo de 4 semanas)</label>
                 <select id="selectRol">
                     <option value="">Selecciona rol...</option>
                 </select>
@@ -346,7 +346,6 @@
         );
     }
 
-
     function procesarJornadas(datosRaw) {
         const datos = [...datosRaw].sort((a,b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));
         const jornadas = [];
@@ -436,14 +435,19 @@
         }
     }
 
+    // --- NUEVO CÁLCULO MATEMÁTICO: CICLOS UNIVERSALES DE 4 SEMANAS ---
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaAnclaStr, fechaEvaluada) {
         if (!cargo || !rolAsignado || !fechaAnclaStr) return null;
-        const hoy = new Date(fechaEvaluada); hoy.setHours(0,0,0,0);
-        const ancla = new Date(fechaAnclaStr); ancla.setHours(0,0,0,0);
+        
+        // Ajustamos la fecha al mediodía para que los cambios de hora (verano/invierno) no descuadren los días
+        const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
+        const ancla = new Date(fechaAnclaStr); ancla.setHours(12,0,0,0);
+        
         const diffTime = hoy - ancla;
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const semanasTranscurridas = Math.floor(diffDays / 7);
-        const fase = Math.floor(semanasTranscurridas / 4);
+        // Cada 4 semanas exactas se cambia de fase
+        const fase = Math.floor(semanasTranscurridas / 4); 
         const diaSemana = hoy.getDay() || 7; 
 
         if (cargo === 'Cocinero') {
@@ -530,7 +534,6 @@
         tbody.innerHTML = htmlTabla;
     }
 
-    // --- CUADRANTE GENERAL (ADMIN) ---
     async function abrirCuadranteGeneral() {
         const inputMes = document.getElementById('filtroMesCuadrante');
         if (!inputMes.value) { 
@@ -771,23 +774,33 @@
         else if (cargo === 'Camarero') { for(let i=1; i<=5; i++) selectRol.innerHTML += `<option value="Rol ${i}">Rol ${i}</option>`; }
     }
 
+    // --- NUEVO SISTEMA DE GUARDADO CON LA FECHA UNIVERSAL (31/08/2026) ---
     async function guardarRolEmpleado() {
         const cargo = document.getElementById('selectCargo').value; 
         const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const hoy = new Date(); 
-        const diaSemana = hoy.getDay() || 7; 
-        const lunes = new Date(hoy); 
-        lunes.setDate(hoy.getDate() - diaSemana + 1);
-        const fechaAncla = lunes.toISOString().split('T')[0];
+        // Calculamos a qué bloque de 4 semanas pertenece el día de hoy
+        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // 31 de Agosto de 2026
+        const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+        let fechaAnclaStr = "2026-08-31";
+        
+        if (hoy >= EPOCH) {
+            const diffTime = hoy - EPOCH;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const ciclosPasados = Math.floor(diffDays / 28);
+            const fechaAncla = new Date(EPOCH.getTime() + (ciclosPasados * 28 * 24 * 60 * 60 * 1000));
+            
+            const offset = fechaAncla.getTimezoneOffset() * 60000;
+            fechaAnclaStr = new Date(fechaAncla.getTime() - offset).toISOString().split('T')[0];
+        }
 
         const { data, error } = await cliente
             .from('empleados')
             .update({ 
                 cargo: cargo, 
                 rol_turno: rol, 
-                fecha_ancla: fechaAncla 
+                fecha_ancla: fechaAnclaStr 
             })
             .eq('email', emailEmpleadoEditando)
             .select();
