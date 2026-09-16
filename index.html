@@ -28,6 +28,9 @@
         .btn-info { background-color: #0ea5e9; color: white; }
         .btn-success { background-color: #10b981; color: white; }
         
+        /* BOTÓN DESACTIVADO / ARCHIVADO */
+        .btn-proximamente { background-color: #d4d4d8; color: #71717a; cursor: not-allowed; }
+        
         .link-text { color: #3b82f6; font-size: 0.9rem; cursor: pointer; text-decoration: underline; margin-top: 1rem; display: inline-block; }
 
         .pantalla { display: none; }
@@ -100,9 +103,10 @@
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
-        <!-- BOTONES CON BARRERA GPS -->
+        <!-- BOTÓN DE ENTRADA DESACTIVADO (MODO PRÓXIMAMENTE) -->
+        <!-- Para volver a activarlo, cambia "btn-proximamente" por "btn-entrada" y vuelve a ponerle el onclick="verificarGPSAntesDeFichar('Entrada')" -->
         <div class="actions">
-            <button id="btnEntrada" class="btn btn-entrada" onclick="verificarGPSAntesDeFichar('Entrada')">🟢 FICHAJE DE ENTRADA</button>
+            <button id="btnEntrada" class="btn btn-proximamente" disabled>🔜 PRÓXIMAMENTE</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
             <button class="btn btn-info" onclick="abrirPantallaCalendarioEmpleado()">📅 MI CALENDARIO MENSUAL</button>
         </div>
@@ -363,7 +367,6 @@
         Object.values(turnosAbiertos).forEach(j => { if(j) jornadas.push(j); });
         return jornadas.sort((a,b) => new Date(b.entrada || b.salida) - new Date(a.entrada || a.salida));
     }
-
 
     function inicializarCanvas(idCanvas) {
         const canvas = document.getElementById(idCanvas); const ctx = canvas.getContext('2d'); let dibujando = false;
@@ -748,25 +751,12 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; 
-        const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const { data, error } = await cliente
-            .from('empleados')
-            .update({ cargo: cargo, rol_turno: rol })
-            .eq('email', emailEmpleadoEditando)
-            .select();
-
-        if (error) {
-            alert("Error al guardar: " + error.message);
-        } else if (!data || data.length === 0) {
-            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase.");
-        } else {
-            alert("✅ Rol y turno asignados correctamente.");
-            document.getElementById('modalAsignarRol').style.display = 'none'; 
-            cargarGestionPlantilla(); 
-        }
+        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol }).eq('email', emailEmpleadoEditando).select();
+        if (error) alert("Error al guardar: " + error.message);
+        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
     }
 
     async function abrirCorreccionAdmin() {
