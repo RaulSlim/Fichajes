@@ -132,7 +132,7 @@
             </table>
         </div>
 
-        <!-- LEYENDA INTELIGENTE (SE LLENARÁ CON JAVASCRIPT SEGÚN EL ROL) -->
+        <!-- LEYENDA INTELIGENTE Y DINÁMICA -->
         <div id="leyendaEmpleado" style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a; display: none;">
         </div>
 
@@ -224,7 +224,7 @@
             </table>
         </div>
 
-        <!-- El Admin sigue viendo la leyenda completa para saber qué es cada cosa -->
+        <!-- LEYENDA DEL ADMIN (Esta sí muestra todo para control global) -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
             <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
             <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br>
@@ -509,19 +509,20 @@
             if (divInfo) divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
             thead.innerHTML = '';
             tbody.innerHTML = '<tr><td style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>'; 
-            leyenda.style.display = 'none';
+            if(leyenda) leyenda.style.display = 'none';
             return;
         }
 
-        // --- RENDERIZAR LA LEYENDA INTELIGENTE SEGÚN EL ROL ---
-        leyenda.style.display = 'block';
-        if (datosPerfil.cargo === 'Cocinero') {
-            leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
-        } else if (datosPerfil.cargo === 'Camarero') {
-            leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+        // --- LEYENDA INTELIGENTE ---
+        if(leyenda) {
+            leyenda.style.display = 'block';
+            if (datosPerfil.cargo === 'Cocinero') {
+                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+            } else if (datosPerfil.cargo === 'Camarero') {
+                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+            }
         }
 
-        // --- INFO DE HOY ---
         const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, new Date());
         if (infoHoy && divInfo && txtTurno) {
             divInfo.style.display = 'block';
@@ -544,7 +545,6 @@
         const diasEnMes = new Date(anyo, mes, 0).getDate();
         const hoyReal = new Date();
         
-        // --- 1. CABECERA DIAS DEL MES ---
         let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
         for (let i = 1; i <= diasEnMes; i++) {
             const esHoy = (i === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
@@ -554,7 +554,6 @@
         htmlHead += '</tr>';
         thead.innerHTML = htmlHead;
 
-        // --- 2. FILA DEL EMPLEADO ---
         let rowHtml = `<tr><td class="sticky-col">${datosPerfil.nombre}</td>`;
         for (let dia = 1; dia <= diasEnMes; dia++) {
             const fechaEvaluada = new Date(anyo, mes - 1, dia);
