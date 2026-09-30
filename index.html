@@ -132,7 +132,7 @@
             </table>
         </div>
 
-        <!-- LEYENDA INTELIGENTE -->
+        <!-- LEYENDA INTELIGENTE Y DINÁMICA -->
         <div id="leyendaEmpleado" style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a; display: none;">
         </div>
 
@@ -518,9 +518,9 @@
         if(leyenda) {
             leyenda.style.display = 'block';
             if (datosPerfil.cargo === 'Cocinero') {
-                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖️️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             } else if (datosPerfil.cargo === 'Camarero') {
-                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖️️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             }
         }
 
@@ -545,17 +545,16 @@
         
         const diasEnMes = new Date(anyo, mes, 0).getDate();
         const hoyReal = new Date();
-        
         const nombresDiasCorto = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 
-        // --- 1. CABECERA CON NÚMERO Y DÍA ---
+        // --- 1. CABECERA DIAS DEL MES ---
         let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
         for (let i = 1; i <= diasEnMes; i++) {
             const fechaCabecera = new Date(anyo, mes - 1, i);
             const diaStr = nombresDiasCorto[fechaCabecera.getDay()];
             const esHoy = (i === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
             const estiloBg = esHoy ? 'background:#fef08a;' : '';
-            htmlHead += `<th style="text-align:center; ${estiloBg}"><span style="font-size:0.6rem; font-weight:normal; color:#71717a;">${diaStr}</span><br>${i}</th>`;
+            htmlHead += `<th style="text-align:center; min-width:35px; ${estiloBg}"><span style="font-size:0.6rem; font-weight:normal; color:#71717a;">${diaStr}</span><br>${i}</th>`;
         }
         htmlHead += '</tr>';
         thead.innerHTML = htmlHead;
@@ -600,21 +599,20 @@
         const [anyo, mes] = inputMes.split('-');
         const diasEnMes = new Date(anyo, mes, 0).getDate();
         const hoyReal = new Date();
+        const nombresDiasCorto = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 
         const { data: empleados, error } = await cliente.from('empleados').select('*').order('cargo').order('nombre');
         
         const thead = document.getElementById('headCuadrante');
         const tbody = document.getElementById('bodyCuadrante');
-        const nombresDiasCorto = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
         
-        // Cabecera admin con días
         let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
         for (let i = 1; i <= diasEnMes; i++) {
             const fechaCabecera = new Date(anyo, mes - 1, i);
             const diaStr = nombresDiasCorto[fechaCabecera.getDay()];
             const esHoy = (i === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
             const estiloBg = esHoy ? 'background:#fef08a;' : '';
-            htmlHead += `<th style="text-align:center; ${estiloBg}"><span style="font-size:0.6rem; font-weight:normal; color:#71717a;">${diaStr}</span><br>${i}</th>`;
+            htmlHead += `<th style="text-align:center; min-width:35px; ${estiloBg}"><span style="font-size:0.6rem; font-weight:normal; color:#71717a;">${diaStr}</span><br>${i}</th>`;
         }
         htmlHead += '</tr>';
         thead.innerHTML = htmlHead;
