@@ -103,8 +103,7 @@
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
-        <!-- BOTÓN DE ENTRADA DESACTIVADO (MODO PRÓXIMAMENTE) -->
-        <!-- Para volver a activarlo, cambia "btn-proximamente" por "btn-entrada" y vuelve a ponerle el onclick="verificarGPSAntesDeFichar('Entrada')" -->
+        <!-- BOTÓN DESACTIVADO TEMPORALMENTE -->
         <div class="actions">
             <button id="btnEntrada" class="btn btn-proximamente" disabled>🔜 PRÓXIMAMENTE</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
@@ -221,9 +220,9 @@
             </table>
         </div>
 
-        <div style="font-size: 0.75rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
-            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-18:30) | <span style="color:#ea580c; font-weight:bold;">T</span> = Tarde (11:30-21:30)<br>
-            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> = Aper (8:30-18:30) | <span style="color:#ea580c; font-weight:bold;">C</span> = Cierre (11:30-21:30) | <span style="color:#2563eb; font-weight:bold;">Ap</span> = Apoyo (09:00-19:00)<br>
+        <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">T</span> = Tarde (11:30-20:30 o 12:30-21:30) | <span style="color:#ef4444; font-weight:bold;">AY</span> = Ayuda (12:00-16:00)<br>
+            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> = Apertura (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> = Cierre (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> = Apoyo (09:00-18:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
 
@@ -412,39 +411,49 @@
     }
 
     // ==========================================
-    // CÁLCULO DE TURNOS CON FECHA UNIVERSAL
-    // (Anclado eternamente al 31 de Agosto de 2026)
+    // NUEVO CEREBRO DE TURNOS ABREVIADOS (A, C, AP, M, T, AY)
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
         
-        // FECHA UNIVERSAL INQUEBRANTABLE: Lunes 31 de Agosto de 2026 a las 12:00 del mediodía
-        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); 
-        
+        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026
         const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
         
         const diffTime = hoy - EPOCH;
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const semanasTranscurridas = Math.floor(diffDays / 7);
-        // Cada 4 semanas exactas se cambia de fase
         const fase = Math.floor(semanasTranscurridas / 4);
-        
         const diaSemana = hoy.getDay() || 7; 
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
             let cicloActual = 'A';
-            const moduloFase = ((fase % 2) + 2) % 2; // Fórmula segura para números negativos
+            const moduloFase = ((fase % 2) + 2) % 2; 
             
             if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
             else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
 
-            const horario = (numRol === 1 || numRol === 3) ? '08:30 a 18:30' : '11:30 a 21:30';
-            let trabaja = false;
-            if (cicloActual === 'A' && diaSemana >= 1 && diaSemana <= 4) trabaja = true;
-            if (cicloActual === 'B' && diaSemana >= 4 && diaSemana <= 7) trabaja = true;
+            // Configuramos los colores y horarios base según el Rol
+            let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
+            if (numRol === 2) { abrevFull = 'T'; horaFull = '12:30 a 21:30'; colorFull = '#ea580c'; } // Naranja
+            if (numRol === 4) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#ea580c'; } // Naranja
 
-            return { rolActivo: `Rol ${numRol} (${cicloActual === 'A' ? 'Lun-Jue' : 'Jue-Dom'})`, turno: trabaja ? horario : 'Libre' };
+            let trabajaFull = false;
+            let trabajaAy = false;
+
+            if (cicloActual === 'A') {
+                if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
+                if (diaSemana === 5) trabajaAy = true; // Viernes Rojo (AY)
+            } else {
+                if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
+                if (diaSemana === 3) trabajaAy = true; // Miércoles Rojo (AY)
+            }
+
+            let turnoObj = { abrev: 'L', texto: 'Libre', color: '#a1a1aa' };
+            if (trabajaFull) turnoObj = { abrev: abrevFull, texto: horaFull, color: colorFull };
+            else if (trabajaAy) turnoObj = { abrev: 'AY', texto: '12:00 a 16:00', color: '#ef4444' };
+
+            return { rolActivo: `Rol ${numRol}`, turno: turnoObj };
         } 
         else if (cargo === 'Camarero') {
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
@@ -452,15 +461,30 @@
             const idxInicial = secuencia.indexOf(numRolAsignado);
             let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
             const rolActual = secuencia[idxActual];
-            let turno = 'Libre';
+            
+            let abrev = 'L', texto = 'Libre', color = '#a1a1aa';
+            const setTurno = (a, t, c) => { abrev = a; texto = t; color = c; };
 
-            if (rolActual === 1) { if (diaSemana >= 4 && diaSemana <= 7) turno = 'Cierre (11:30-21:30)'; } 
-            else if (rolActual === 2) { if (diaSemana === 1) turno = 'Apoyo (09:00-19:00)'; if (diaSemana >= 5 && diaSemana <= 7) turno = 'Apertura (08:30-18:30)'; } 
-            else if (rolActual === 3) { if (diaSemana === 1) turno = 'Cierre (11:30-21:30)'; if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) turno = 'Apoyo (09:00-19:00)'; } 
-            else if (rolActual === 4) { if (diaSemana === 2 || diaSemana === 3) turno = 'Cierre (11:30-21:30)'; if (diaSemana === 4 || diaSemana === 5) turno = 'Apoyo (09:00-19:00)'; } 
-            else if (rolActual === 5) { if (diaSemana >= 1 && diaSemana <= 4) turno = 'Apertura (08:30-18:30)'; }
+            if (rolActual === 1) { 
+                if (diaSemana >= 4 && diaSemana <= 7) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+            } 
+            else if (rolActual === 2) { 
+                if (diaSemana === 1) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+                if (diaSemana >= 5 && diaSemana <= 7) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+            } 
+            else if (rolActual === 3) { 
+                if (diaSemana === 1) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+            } 
+            else if (rolActual === 4) { 
+                if (diaSemana === 2 || diaSemana === 3) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 4 || diaSemana === 5) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+            } 
+            else if (rolActual === 5) { 
+                if (diaSemana >= 1 && diaSemana <= 4) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+            }
 
-            return { rolActivo: `Rol ${rolActual}`, turno: turno };
+            return { rolActivo: `Rol ${rolActual}`, turno: { abrev, texto, color } };
         }
         return null;
     }
@@ -484,12 +508,12 @@
         const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, new Date());
         if (infoHoy && divInfo && txtTurno) {
             divInfo.style.display = 'block';
-            if (infoHoy.turno === 'Libre') {
+            if (infoHoy.turno.abrev === 'L') {
                 divInfo.style.background = '#f1f5f9'; divInfo.style.borderColor = '#cbd5e1'; divInfo.style.color = '#475569';
                 txtTurno.innerHTML = '<strong>Hoy tienes Día Libre 🏖️</strong>';
             } else {
-                divInfo.style.background = '#f0fdf4'; divInfo.style.borderColor = '#bbf7d0'; divInfo.style.color = '#166534';
-                txtTurno.innerHTML = `Turno de hoy: <strong>${infoHoy.turno}</strong>`;
+                divInfo.style.background = '#fff'; divInfo.style.borderColor = infoHoy.turno.color; divInfo.style.color = '#18181b';
+                txtTurno.innerHTML = `Turno de hoy: <strong style="color:${infoHoy.turno.color};">${infoHoy.turno.abrev} (${infoHoy.turno.texto})</strong>`;
             }
         }
 
@@ -508,10 +532,14 @@
             const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, fechaEvaluada);
             const esHoy = (fechaEvaluada.getDate() === hoyReal.getDate() && fechaEvaluada.getMonth() === hoyReal.getMonth() && fechaEvaluada.getFullYear() === hoyReal.getFullYear());
             const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
-            const txtCol = (res && res.turno !== 'Libre') ? res.turno : '<span style="color:#9ca3af;">Día Libre</span>';
-            const diaFormateado = String(dia).padStart(2, '0');
+            
+            let txtCol = '<span style="color:#9ca3af;">Día Libre</span>';
+            if (res && res.turno.abrev !== 'L') {
+                txtCol = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span> <span style="font-size:0.75rem; color:#71717a;">(${res.turno.texto})</span>`;
+            }
 
-            htmlTabla += `<tr style="${estiloFila}"><td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '(Hoy)' : ''}</td><td>${txtCol}</td></tr>`;
+            const diaFormateado = String(dia).padStart(2, '0');
+            htmlTabla += `<tr style="${estiloFila}"><td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '<br><span style="font-size:0.7rem; color:#ea580c;">(Hoy)</span>' : ''}</td><td>${txtCol}</td></tr>`;
         }
         tbody.innerHTML = htmlTabla;
     }
@@ -556,19 +584,12 @@
                 
                 for (let dia = 1; dia <= diasEnMes; dia++) {
                     const fechaEval = new Date(anyo, mes - 1, dia);
-                    let turnoAbrev = '<span style="color:#d4d4d8;">L</span>';
+                    let turnoAbrev = '<span style="color:#d4d4d8; font-weight:bold;">L</span>';
                     
                     if (emp.cargo && emp.rol_turno) {
                         const res = calcularTurnoParaFecha(emp.cargo, emp.rol_turno, fechaEval);
-                        if (res && res.turno !== 'Libre') {
-                            if (emp.cargo === 'Cocinero') {
-                                if (res.turno.includes('08:30')) turnoAbrev = '<span style="color:#16a34a; font-weight:bold;">M</span>';
-                                else if (res.turno.includes('11:30')) turnoAbrev = '<span style="color:#ea580c; font-weight:bold;">T</span>';
-                            } else if (emp.cargo === 'Camarero') {
-                                if (res.turno.includes('Apertura')) turnoAbrev = '<span style="color:#16a34a; font-weight:bold;">A</span>';
-                                else if (res.turno.includes('Cierre')) turnoAbrev = '<span style="color:#ea580c; font-weight:bold;">C</span>';
-                                else if (res.turno.includes('Apoyo')) turnoAbrev = '<span style="color:#2563eb; font-weight:bold;">Ap</span>';
-                            }
+                        if (res && res.turno.abrev !== 'L') {
+                            turnoAbrev = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span>`;
                         }
                     }
                     const esHoy = (dia === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
@@ -751,12 +772,25 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; 
+        const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol }).eq('email', emailEmpleadoEditando).select();
-        if (error) alert("Error al guardar: " + error.message);
-        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
+        const { data, error } = await cliente
+            .from('empleados')
+            .update({ cargo: cargo, rol_turno: rol })
+            .eq('email', emailEmpleadoEditando)
+            .select();
+
+        if (error) {
+            alert("Error al guardar: " + error.message);
+        } else if (!data || data.length === 0) {
+            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase.");
+        } else {
+            alert("✅ Rol y turno asignados correctamente.");
+            document.getElementById('modalAsignarRol').style.display = 'none'; 
+            cargarGestionPlantilla(); 
+        }
     }
 
     async function abrirCorreccionAdmin() {
