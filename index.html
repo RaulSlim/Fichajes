@@ -132,7 +132,7 @@
             </table>
         </div>
 
-        <!-- LEYENDA INTELIGENTE Y DINÁMICA -->
+        <!-- LEYENDA INTELIGENTE -->
         <div id="leyendaEmpleado" style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a; display: none;">
         </div>
 
@@ -226,7 +226,7 @@
 
         <!-- LEYENDA DEL ADMIN -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
-            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
             <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
@@ -438,7 +438,7 @@
             else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
 
             let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
-            if (numRol === 2) { abrevFull = 'T'; horaFull = '12:30 a 21:30'; colorFull = '#9333ea'; } // Morado
+            if (numRol === 2) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; } // Morado
             if (numRol === 4) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; } // Morado
 
             let trabajaFull = false;
@@ -518,7 +518,7 @@
         if(leyenda) {
             leyenda.style.display = 'block';
             if (datosPerfil.cargo === 'Cocinero') {
-                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             } else if (datosPerfil.cargo === 'Camarero') {
                 leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             }
