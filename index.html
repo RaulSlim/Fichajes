@@ -220,8 +220,9 @@
             </table>
         </div>
 
+        <!-- LEYENDA ACTUALIZADA -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
-            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">T</span> = Tarde (11:30-20:30 o 12:30-21:30) | <span style="color:#ef4444; font-weight:bold;">AY</span> = Ayuda (12:00-16:00)<br>
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> = Tarde (11:30-20:30 o 12:30-21:30) | <span style="color:#ef4444; font-weight:bold;">AY</span> = Ayuda (12:00-16:00)<br>
             <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> = Apertura (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> = Cierre (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> = Apoyo (09:00-18:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
@@ -433,10 +434,9 @@
             if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
             else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
 
-            // Configuramos los colores y horarios base según el Rol
             let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
-            if (numRol === 2) { abrevFull = 'T'; horaFull = '12:30 a 21:30'; colorFull = '#ea580c'; } // Naranja
-            if (numRol === 4) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#ea580c'; } // Naranja
+            if (numRol === 2) { abrevFull = 'T'; horaFull = '12:30 a 21:30'; colorFull = '#9333ea'; } // Morado
+            if (numRol === 4) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; } // Morado
 
             let trabajaFull = false;
             let trabajaAy = false;
@@ -772,25 +772,12 @@
     }
 
     async function guardarRolEmpleado() {
-        const cargo = document.getElementById('selectCargo').value; 
-        const rol = document.getElementById('selectRol').value;
+        const cargo = document.getElementById('selectCargo').value; const rol = document.getElementById('selectRol').value;
         if (!cargo || !rol) return alert("Debes seleccionar tanto el Puesto como el Rol.");
         
-        const { data, error } = await cliente
-            .from('empleados')
-            .update({ cargo: cargo, rol_turno: rol })
-            .eq('email', emailEmpleadoEditando)
-            .select();
-
-        if (error) {
-            alert("Error al guardar: " + error.message);
-        } else if (!data || data.length === 0) {
-            alert("⚠️ No se pudo actualizar.\nAsegúrate de haber desactivado el RLS en la tabla 'empleados' de Supabase.");
-        } else {
-            alert("✅ Rol y turno asignados correctamente.");
-            document.getElementById('modalAsignarRol').style.display = 'none'; 
-            cargarGestionPlantilla(); 
-        }
+        const { data, error } = await cliente.from('empleados').update({ cargo: cargo, rol_turno: rol }).eq('email', emailEmpleadoEditando).select();
+        if (error) alert("Error al guardar: " + error.message);
+        else { alert("✅ Rol y turno asignados correctamente."); document.getElementById('modalAsignarRol').style.display = 'none'; cargarGestionPlantilla(); }
     }
 
     async function abrirCorreccionAdmin() {
