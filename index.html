@@ -107,7 +107,7 @@
         <div class="actions">
             <button id="btnEntrada" class="btn btn-proximamente" disabled>🔜 PRÓXIMAMENTE</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
-            <button class="btn btn-info" onclick="abrirPantallaCalendarioEmpleado()">📅 MI CALENDARIO MENSUAL</button>
+            <button class="btn btn-info" onclick="abrirPantallaCalendarioEmpleado()">📅 MI CUADRANTE MENSUAL</button>
         </div>
         
         <div class="nav-links">
@@ -116,23 +116,29 @@
         </div>
     </div>
 
-    <!-- 4. CALENDARIO MENSUAL DEL EMPLEADO -->
-    <div class="container pantalla" id="pantallaCalendarioEmpleado">
+    <!-- 4. CALENDARIO MENSUAL DEL EMPLEADO (AHORA HORIZONTAL) -->
+    <div class="container pantalla" id="pantallaCalendarioEmpleado" style="max-width: 95vw;">
         <h2>Mi Cuadrante Mensual</h2>
         <p class="subtitle" id="subtituloCuadrante">Cargando...</p>
         
-        <div class="form-group" style="margin-bottom: 1rem;">
-            <label style="text-align: center; color: #71717a;">Selecciona el mes a consultar:</label>
+        <div class="form-group" style="max-width: 250px; margin: 0 auto 1rem auto;">
             <input type="month" id="filtroMesEmpleado" onchange="pintarCalendarioEmpleado()" style="text-align: center; font-weight: bold;">
         </div>
 
-        <div class="tabla-container" style="max-height: 380px;">
-            <table style="font-size: 0.85rem; margin-top: 0;">
-                <thead><tr><th>Fecha</th><th>Turno asignado</th></tr></thead>
-                <tbody id="tablaCalendarioSemana"></tbody>
+        <div class="tabla-container" style="max-height: 60vh; overflow-x: auto; overflow-y: hidden;">
+            <table style="font-size: 0.75rem; white-space: nowrap;">
+                <thead id="headCalendarioEmpleado"></thead>
+                <tbody id="bodyCalendarioEmpleado"></tbody>
             </table>
         </div>
-        <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
+
+        <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
+            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br>
+            <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
+        </div>
+
+        <button class="btn btn-secondary" style="margin-top: 1rem; max-width: 300px;" onclick="cambiarPantalla('pantallaFichaje')">Volver</button>
     </div>
 
     <!-- VENTANAS DE FIRMAS -->
@@ -205,7 +211,7 @@
         <button class="btn btn-secondary" onclick="cambiarPantalla('pantallaAdmin')">Volver al panel</button>
     </div>
 
-    <!-- PANTALLA: CUADRANTE GENERAL -->
+    <!-- PANTALLA: CUADRANTE GENERAL (ADMIN) -->
     <div class="container pantalla" id="pantallaCuadranteGeneral" style="max-width: 95vw;">
         <h2>Cuadrante de Plantilla</h2>
         
@@ -220,9 +226,8 @@
             </table>
         </div>
 
-        <!-- LEYENDA ACTUALIZADA -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
-            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> = Tarde (11:30-20:30 o 12:30-21:30) | <span style="color:#ef4444; font-weight:bold;">AY</span> = Ayuda (12:00-16:00)<br>
+            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> = Mañana (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> = Tarde (11:30-20:30 o 12:30-21:30) | <span style="background:#ef4444; color:white; padding:0 3px; font-weight:bold;">AY</span> = Ayuda (12:00-16:00)<br>
             <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> = Apertura (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> = Cierre (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> = Apoyo (09:00-18:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
@@ -303,7 +308,6 @@
         return R * c; 
     }
 
-    // --- FUNCIÓN BARRERA DE UBICACIÓN ---
     function verificarGPSAntesDeFichar(tipo) {
         if (!navigator.geolocation) {
             alert("Tu teléfono o navegador no soporta geolocalización. No puedes fichar.");
@@ -412,7 +416,7 @@
     }
 
     // ==========================================
-    // NUEVO CEREBRO DE TURNOS ABREVIADOS (A, C, AP, M, T, AY)
+    // CÁLCULO DE TURNOS Y COLORES
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
@@ -495,22 +499,30 @@
         pintarCalendarioEmpleado(); cambiarPantalla('pantallaCalendarioEmpleado');
     }
 
+    // --- NUEVO FORMATO DE CUADRANTE EMPLEADO (HORIZONAL / TIMELINE) ---
     function pintarCalendarioEmpleado() {
         const divInfo = document.getElementById('infoTurnoHoy'); const txtTurno = document.getElementById('textoTurnoHoy');
-        const subtitulo = document.getElementById('subtituloCuadrante'); const tbody = document.getElementById('tablaCalendarioSemana');
+        const subtitulo = document.getElementById('subtituloCuadrante'); 
+        const thead = document.getElementById('headCalendarioEmpleado');
+        const tbody = document.getElementById('bodyCalendarioEmpleado');
         const inputMes = document.getElementById('filtroMesEmpleado');
 
         if (!datosPerfil.cargo || !datosPerfil.rol_turno) {
             if (divInfo) divInfo.style.display = 'none'; subtitulo.textContent = 'Turno no asignado';
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>'; return;
+            thead.innerHTML = '';
+            tbody.innerHTML = '<tr><td style="text-align:center; padding: 15px;">Aún no se te ha asignado un turno rotativo.<br>Habla con Dirección.</td></tr>'; return;
         }
 
+        // Info de Hoy (Panel superior)
         const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, new Date());
         if (infoHoy && divInfo && txtTurno) {
             divInfo.style.display = 'block';
             if (infoHoy.turno.abrev === 'L') {
                 divInfo.style.background = '#f1f5f9'; divInfo.style.borderColor = '#cbd5e1'; divInfo.style.color = '#475569';
                 txtTurno.innerHTML = '<strong>Hoy tienes Día Libre 🏖️</strong>';
+            } else if (infoHoy.turno.abrev === 'AY') {
+                divInfo.style.background = '#ef4444'; divInfo.style.borderColor = '#b91c1c'; divInfo.style.color = 'white';
+                txtTurno.innerHTML = `Turno de hoy: <strong style="color:white;">AY (12:00 a 16:00)</strong>`;
             } else {
                 divInfo.style.background = '#fff'; divInfo.style.borderColor = infoHoy.turno.color; divInfo.style.color = '#18181b';
                 txtTurno.innerHTML = `Turno de hoy: <strong style="color:${infoHoy.turno.color};">${infoHoy.turno.abrev} (${infoHoy.turno.texto})</strong>`;
@@ -522,26 +534,40 @@
         subtitulo.textContent = `${datosPerfil.cargo} - ${datosPerfil.rol_turno}`;
         
         const diasEnMes = new Date(anyo, mes, 0).getDate();
-        const nombresDias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
         const hoyReal = new Date();
-        let htmlTabla = '';
+        
+        // 1. DIBUJAR CABECERA HORIZONTAL (1 al 31)
+        let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
+        for (let i = 1; i <= diasEnMes; i++) {
+            const esHoy = (i === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
+            const estiloBg = esHoy ? 'background:#fef08a;' : '';
+            htmlHead += `<th style="${estiloBg}">${i}</th>`;
+        }
+        htmlHead += '</tr>';
+        thead.innerHTML = htmlHead;
 
+        // 2. DIBUJAR FILA DEL EMPLEADO
+        let rowHtml = `<tr><td class="sticky-col">${datosPerfil.nombre}</td>`;
         for (let dia = 1; dia <= diasEnMes; dia++) {
             const fechaEvaluada = new Date(anyo, mes - 1, dia);
-            const nombreDia = nombresDias[fechaEvaluada.getDay()];
             const res = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, fechaEvaluada);
-            const esHoy = (fechaEvaluada.getDate() === hoyReal.getDate() && fechaEvaluada.getMonth() === hoyReal.getMonth() && fechaEvaluada.getFullYear() === hoyReal.getFullYear());
-            const estiloFila = esHoy ? 'background-color: #fef9c3; font-weight: bold;' : '';
+            const esHoy = (dia === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
             
-            let txtCol = '<span style="color:#9ca3af;">Día Libre</span>';
-            if (res && res.turno.abrev !== 'L') {
-                txtCol = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span> <span style="font-size:0.75rem; color:#71717a;">(${res.turno.texto})</span>`;
-            }
+            let turnoAbrev = '<span style="color:#d4d4d8; font-weight:bold;">L</span>';
+            let estiloBg = esHoy ? 'background:#fef9c3;' : '';
 
-            const diaFormateado = String(dia).padStart(2, '0');
-            htmlTabla += `<tr style="${estiloFila}"><td><strong>${nombreDia} ${diaFormateado}/${mes}</strong> ${esHoy ? '<br><span style="font-size:0.7rem; color:#ea580c;">(Hoy)</span>' : ''}</td><td>${txtCol}</td></tr>`;
+            if (res && res.turno.abrev !== 'L') {
+                if (res.turno.abrev === 'AY') {
+                    turnoAbrev = `<span style="color:white; font-weight:bold;">AY</span>`;
+                    estiloBg = 'background-color:#ef4444;';
+                } else {
+                    turnoAbrev = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span>`;
+                }
+            }
+            rowHtml += `<td style="text-align:center; ${estiloBg}">${turnoAbrev}</td>`;
         }
-        tbody.innerHTML = htmlTabla;
+        rowHtml += '</tr>';
+        tbody.innerHTML = rowHtml;
     }
 
     async function abrirCuadranteGeneral() {
@@ -586,14 +612,20 @@
                     const fechaEval = new Date(anyo, mes - 1, dia);
                     let turnoAbrev = '<span style="color:#d4d4d8; font-weight:bold;">L</span>';
                     
+                    const esHoy = (dia === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
+                    let estiloBg = esHoy ? 'background:#fef9c3;' : '';
+                    
                     if (emp.cargo && emp.rol_turno) {
                         const res = calcularTurnoParaFecha(emp.cargo, emp.rol_turno, fechaEval);
                         if (res && res.turno.abrev !== 'L') {
-                            turnoAbrev = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span>`;
+                            if (res.turno.abrev === 'AY') {
+                                turnoAbrev = `<span style="color:white; font-weight:bold;">AY</span>`;
+                                estiloBg = 'background-color:#ef4444;';
+                            } else {
+                                turnoAbrev = `<span style="color:${res.turno.color}; font-weight:bold;">${res.turno.abrev}</span>`;
+                            }
                         }
                     }
-                    const esHoy = (dia === hoyReal.getDate() && parseInt(mes) === hoyReal.getMonth() + 1 && parseInt(anyo) === hoyReal.getFullYear());
-                    const estiloBg = esHoy ? 'background:#fef9c3;' : '';
                     
                     rowHtml += `<td style="text-align:center; ${estiloBg}">${turnoAbrev}</td>`;
                 }
