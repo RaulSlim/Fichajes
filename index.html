@@ -103,6 +103,7 @@
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
+        <!-- BOTÓN DESACTIVADO TEMPORALMENTE -->
         <div class="actions">
             <button id="btnEntrada" class="btn btn-proximamente" disabled>🔜 PRÓXIMAMENTE</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
@@ -131,7 +132,7 @@
             </table>
         </div>
 
-        <!-- LEYENDA INTELIGENTE Y DINÁMICA -->
+        <!-- LEYENDA INTELIGENTE -->
         <div id="leyendaEmpleado" style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a; display: none;">
         </div>
 
@@ -226,7 +227,7 @@
         <!-- LEYENDA DEL ADMIN -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
             <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
-            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br>
+            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
 
@@ -414,7 +415,7 @@
     }
 
     // ==========================================
-    // CÁLCULO DE TURNOS Y COLORES - ACTUALIZADO COCINA
+    // CÁLCULO DE TURNOS Y COLORES - ACTUALIZADO COMPLETO
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
@@ -429,7 +430,6 @@
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
-            // Los cocineros cambian su horario cada semana dentro de un bloque de 4 semanas (Semanas 0, 1, 2, 3)
             const semanaCiclo = ((semanasTranscurridas % 4) + 4) % 4; 
 
             let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
@@ -441,24 +441,22 @@
             let trabajaAy = false;
 
             if (numRol === 3 || numRol === 4) { 
-                // GRUPO A (Roles 3 y 4)
                 if (semanaCiclo === 0) {
                     if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
-                    if (diaSemana === 5) trabajaAy = true; // AY el Viernes
+                    if (diaSemana === 5) trabajaAy = true; 
                 } else if (semanaCiclo === 1) {
-                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true; // Descansan L,M,X
+                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
                 } else if (semanaCiclo === 2 || semanaCiclo === 3) {
                     if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                    if (diaSemana === 3) trabajaAy = true; // AY el Miércoles
+                    if (diaSemana === 3) trabajaAy = true; 
                 }
             } else if (numRol === 1 || numRol === 2) { 
-                // GRUPO B (Roles 1 y 2)
                 if (semanaCiclo === 0) {
                     if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                    if (diaSemana === 3) trabajaAy = true; // AY el Miércoles
+                    if (diaSemana === 3) trabajaAy = true; 
                 } else if (semanaCiclo === 1 || semanaCiclo === 2 || semanaCiclo === 3) {
                     if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
-                    if (diaSemana === 5) trabajaAy = true; // AY el Viernes
+                    if (diaSemana === 5) trabajaAy = true; 
                 }
             }
 
@@ -472,7 +470,6 @@
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
             const secuencia = [1, 2, 3, 5, 4];
             const idxInicial = secuencia.indexOf(numRolAsignado);
-            // Los camareros rotan su letra entera cada 4 semanas
             const fase = Math.floor(semanasTranscurridas / 4);
             let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
             const rolActual = secuencia[idxActual];
@@ -480,23 +477,29 @@
             let abrev = 'L', texto = 'Libre', color = '#a1a1aa';
             const setTurno = (a, t, c) => { abrev = a; texto = t; color = c; };
 
+            // Ojo al color 'C': Naranja oscuro (#d97706) para distinguir de AY
             if (rolActual === 1) { 
-                if (diaSemana >= 4 && diaSemana <= 7) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana >= 4 && diaSemana <= 7) setTurno('C', '11:30 a 20:30', '#d97706'); 
+                if (diaSemana === 3) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 2) { 
                 if (diaSemana === 1) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
                 if (diaSemana >= 5 && diaSemana <= 7) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+                if (diaSemana === 2) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 3) { 
-                if (diaSemana === 1) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 1) setTurno('C', '11:30 a 20:30', '#d97706'); 
                 if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+                if (diaSemana === 3) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 4) { 
-                if (diaSemana === 2 || diaSemana === 3) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 2 || diaSemana === 3) setTurno('C', '11:30 a 20:30', '#d97706'); 
                 if (diaSemana === 4 || diaSemana === 5) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+                if (diaSemana === 6) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 5) { 
                 if (diaSemana >= 1 && diaSemana <= 4) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+                if (diaSemana === 5) setTurno('AY', '12:00 a 16:00', '#ef4444');
             }
 
             return { rolActivo: `Rol ${rolActual}`, turno: { abrev, texto, color } };
@@ -532,7 +535,7 @@
             if (datosPerfil.cargo === 'Cocinero') {
                 leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             } else if (datosPerfil.cargo === 'Camarero') {
-                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             }
         }
 
