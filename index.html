@@ -103,7 +103,6 @@
         <h3 id="contadorTiempo" style="display: none;">00:00:00</h3>
         <p id="textoEstado" style="display: none;">Jornada iniciada a las <span id="horaInicio"></span></p>
 
-        <!-- BOTÓN DESACTIVADO TEMPORALMENTE -->
         <div class="actions">
             <button id="btnEntrada" class="btn btn-proximamente" disabled>🔜 PRÓXIMAMENTE</button>
             <button id="btnSalida" class="btn btn-salida" style="display:none;" onclick="verificarGPSAntesDeFichar('Salida')">🔴 FINALIZAR TURNO</button>
@@ -132,7 +131,7 @@
             </table>
         </div>
 
-        <!-- LEYENDA INTELIGENTE -->
+        <!-- LEYENDA INTELIGENTE Y DINÁMICA -->
         <div id="leyendaEmpleado" style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a; display: none;">
         </div>
 
@@ -249,7 +248,7 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Número de Rol (Ciclo 4 semanas)</label>
+                <label>Número de Rol</label>
                 <select id="selectRol">
                     <option value="">Selecciona rol...</option>
                 </select>
@@ -296,7 +295,7 @@
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
 
-    // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS (Haversine) ---
+    // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS ---
     function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
         const R = 6371e3;
         const rad = Math.PI / 180;
@@ -415,41 +414,52 @@
     }
 
     // ==========================================
-    // CÁLCULO DE TURNOS Y COLORES
+    // CÁLCULO DE TURNOS Y COLORES - ACTUALIZADO COCINA
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
         
-        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026
+        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026 (Semana 1 / Fase 0)
         const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
         
         const diffTime = hoy - EPOCH;
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const semanasTranscurridas = Math.floor(diffDays / 7);
-        const fase = Math.floor(semanasTranscurridas / 4);
         const diaSemana = hoy.getDay() || 7; 
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
-            let cicloActual = 'A';
-            const moduloFase = ((fase % 2) + 2) % 2; 
-            
-            if (numRol === 1 || numRol === 2) { cicloActual = (moduloFase === 0) ? 'A' : 'B'; } 
-            else if (numRol === 3 || numRol === 4) { cicloActual = (moduloFase === 0) ? 'B' : 'A'; }
+            // Los cocineros cambian su horario cada semana dentro de un bloque de 4 semanas (Semanas 0, 1, 2, 3)
+            const semanaCiclo = ((semanasTranscurridas % 4) + 4) % 4; 
 
             let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
-            if (numRol === 2) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; } // Morado
-            if (numRol === 4) { abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; } // Morado
+            if (numRol === 2 || numRol === 4) { 
+                abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; // Morado
+            } 
 
             let trabajaFull = false;
             let trabajaAy = false;
 
-            if (cicloActual === 'A') {
-                if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
-                if (diaSemana === 5) trabajaAy = true; // Viernes Rojo (AY)
-            } else {
-                if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                if (diaSemana === 3) trabajaAy = true; // Miércoles Rojo (AY)
+            if (numRol === 3 || numRol === 4) { 
+                // GRUPO A (Roles 3 y 4)
+                if (semanaCiclo === 0) {
+                    if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
+                    if (diaSemana === 5) trabajaAy = true; // AY el Viernes
+                } else if (semanaCiclo === 1) {
+                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true; // Descansan L,M,X
+                } else if (semanaCiclo === 2 || semanaCiclo === 3) {
+                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
+                    if (diaSemana === 3) trabajaAy = true; // AY el Miércoles
+                }
+            } else if (numRol === 1 || numRol === 2) { 
+                // GRUPO B (Roles 1 y 2)
+                if (semanaCiclo === 0) {
+                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
+                    if (diaSemana === 3) trabajaAy = true; // AY el Miércoles
+                } else if (semanaCiclo === 1 || semanaCiclo === 2 || semanaCiclo === 3) {
+                    if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
+                    if (diaSemana === 5) trabajaAy = true; // AY el Viernes
+                }
             }
 
             let turnoObj = { abrev: 'L', texto: 'Libre', color: '#a1a1aa' };
@@ -462,6 +472,8 @@
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
             const secuencia = [1, 2, 3, 5, 4];
             const idxInicial = secuencia.indexOf(numRolAsignado);
+            // Los camareros rotan su letra entera cada 4 semanas
+            const fase = Math.floor(semanasTranscurridas / 4);
             let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
             const rolActual = secuencia[idxActual];
             
