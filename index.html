@@ -226,8 +226,11 @@
 
         <!-- LEYENDA DEL ADMIN -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
-            <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
-            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
+            <strong>Turnos (Sala y Cocina):</strong> 
+            <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | 
+            <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | 
+            <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | 
+            <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
 
@@ -296,7 +299,6 @@
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
 
-    // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS ---
     function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
         const R = 6371e3;
         const rad = Math.PI / 180;
@@ -415,77 +417,72 @@
     }
 
     // ==========================================
-    // CÁLCULO DE TURNOS Y COLORES 
+    // CÁLCULO DE TURNOS Y COLORES - CEREBROS SEPARADOS
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
         
         const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
-        const diaSemana = hoy.getDay() || 7; 
+        const diaSemana = hoy.getDay() || 7; // Lunes = 1, Domingo = 7
 
         // ----------------------------------------------------
-        // LÓGICA DE COCINA (Ciclo 4 semanas anclado al 26/10/2026)
+        // 1. CEREBRO DE COCINA (Rotación según cuadrante de 4 semanas)
         // ----------------------------------------------------
         if (cargo === 'Cocinero') {
-            // El inicio universal de este bloque para Cocineros es el Lunes 26 de Octubre de 2026
+            // FECHA ANCLA DE COCINA: Lunes 26 de Octubre de 2026 (Semana 1 del Bloque 1)
             const EPOCH_COCINA = new Date(2026, 9, 26, 12, 0, 0); 
             const diffTime = hoy - EPOCH_COCINA;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const semanasTranscurridas = Math.floor(diffDays / 7);
             
-            const numRol = parseInt(rolAsignado.replace('Rol ', ''));
-            const semanaCiclo = ((semanasTranscurridas % 4) + 4) % 4; // Devuelve 0, 1, 2 o 3
+            const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
+            const secuenciaCocina = [1, 3, 4, 2]; // Orden en el que van saltando tras 4 semanas
+            const idxInicial = secuenciaCocina.indexOf(numRolAsignado);
+            
+            // Cada 4 semanas exactas cambian al siguiente rol de la secuencia
+            const fase = Math.floor(semanasTranscurridas / 4);
+            let idxActual = ((idxInicial + fase) % 4 + 4) % 4; // Asegura que el array gire perfecto
+            const rolActual = secuenciaCocina[idxActual];
+            
+            let abrev = 'L', texto = 'Libre', color = '#a1a1aa';
+            const setTurno = (a, t, c) => { abrev = a; texto = t; color = c; };
 
-            let abrevFull = (numRol === 1 || numRol === 3) ? 'M' : 'T'; 
-            let horaFull = (numRol === 1 || numRol === 3) ? '08:30 a 17:30' : '11:30 a 20:30'; 
-            let colorFull = (numRol === 1 || numRol === 3) ? '#16a34a' : '#9333ea'; 
-
-            let trabajaFull = false;
-            let trabajaAy = false;
-
-            if (numRol === 3 || numRol === 4) { 
-                if (semanaCiclo === 0) { // Semana 1
-                    if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
-                    if (diaSemana === 5) trabajaAy = true; 
-                } else if (semanaCiclo === 1) { // Semana 2
-                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                } else if (semanaCiclo === 2 || semanaCiclo === 3) { // Semanas 3 y 4
-                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                    if (diaSemana === 3) trabajaAy = true; 
-                }
-            } else if (numRol === 1 || numRol === 2) { 
-                if (semanaCiclo === 0) { // Semana 1
-                    if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                    if (diaSemana === 3) trabajaAy = true; 
-                } else if (semanaCiclo === 1 || semanaCiclo === 2 || semanaCiclo === 3) { // Semanas 2, 3 y 4
-                    if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
-                    if (diaSemana === 5) trabajaAy = true; 
-                }
+            if (rolActual === 1) {
+                if (diaSemana === 1 || diaSemana === 2 || diaSemana === 7) setTurno('C', '11:30 a 20:30', '#d97706');
+                else if (diaSemana === 5) setTurno('AY', '12:00 a 16:00', '#ef4444');
+                else if (diaSemana === 6) setTurno('AP', '09:00 a 18:00', '#2563eb');
+            } else if (rolActual === 2) {
+                if (diaSemana === 1) setTurno('AY', '12:00 a 16:00', '#ef4444');
+                else if (diaSemana >= 2 && diaSemana <= 5) setTurno('A', '08:30 a 17:30', '#16a34a');
+            } else if (rolActual === 3) {
+                if (diaSemana === 1 || diaSemana === 6 || diaSemana === 7) setTurno('A', '08:30 a 17:30', '#16a34a');
+                else if (diaSemana === 2) setTurno('AY', '12:00 a 16:00', '#ef4444');
+                else if (diaSemana === 5) setTurno('AP', '09:00 a 18:00', '#2563eb');
+            } else if (rolActual === 4) {
+                if (diaSemana >= 3 && diaSemana <= 6) setTurno('C', '11:30 a 20:30', '#d97706');
+                else if (diaSemana === 7) setTurno('AY', '12:00 a 16:00', '#ef4444');
             }
 
-            let turnoObj = { abrev: 'L', texto: 'Libre', color: '#a1a1aa' };
-            if (trabajaFull) turnoObj = { abrev: abrevFull, texto: horaFull, color: colorFull };
-            else if (trabajaAy) turnoObj = { abrev: 'AY', texto: '12:00 a 16:00', color: '#ef4444' };
-
-            return { rolActivo: `Rol ${numRol}`, turno: turnoObj };
+            return { rolActivo: `Rol ${rolActual}`, turno: { abrev, texto, color } };
         } 
+        
         // ----------------------------------------------------
-        // LÓGICA DE SALA (El código original intacto + Color Naranja 'C' + Días en Rojo para AY)
+        // 2. CEREBRO DE SALA (Camareros - El original adaptado a A, C, AP, AY)
         // ----------------------------------------------------
         else if (cargo === 'Camarero') {
-            // El inicio universal de los Camareros se mantiene como estaba
-            const EPOCH_SALA = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026
+            // FECHA ANCLA DE SALA: Lunes 31 de Agosto de 2026
+            const EPOCH_SALA = new Date(2026, 7, 31, 12, 0, 0); 
             const diffTimeSala = hoy - EPOCH_SALA;
             const diffDaysSala = Math.floor(diffTimeSala / (1000 * 60 * 60 * 24));
             const semanasTranscurridasSala = Math.floor(diffDaysSala / 7);
 
             const numRolAsignado = parseInt(rolAsignado.replace('Rol ', ''));
-            // Patrón base de rotación mensual inalterado: [1, 2, 3, 5, 4]
-            const secuencia = [1, 2, 3, 5, 4];
-            const idxInicial = secuencia.indexOf(numRolAsignado);
-            const fase = Math.floor(semanasTranscurridasSala / 4);
-            let idxActual = ((idxInicial + fase) % 5 + 5) % 5;
-            const rolActual = secuencia[idxActual];
+            const secuenciaSala = [1, 2, 3, 5, 4];
+            const idxInicialSala = secuenciaSala.indexOf(numRolAsignado);
+            
+            const faseSala = Math.floor(semanasTranscurridasSala / 4);
+            let idxActualSala = ((idxInicialSala + faseSala) % 5 + 5) % 5;
+            const rolActual = secuenciaSala[idxActualSala];
             
             let abrev = 'L', texto = 'Libre', color = '#a1a1aa';
             const setTurno = (a, t, c) => { abrev = a; texto = t; color = c; };
@@ -541,14 +538,11 @@
             return;
         }
 
-        // --- LEYENDA INTELIGENTE ---
+        // --- LEYENDA UNIFICADA ---
         if(leyenda) {
             leyenda.style.display = 'block';
-            if (datosPerfil.cargo === 'Cocinero') {
-                leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
-            } else if (datosPerfil.cargo === 'Camarero') {
-                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
-            }
+            let tituloLeyenda = datosPerfil.cargo === 'Cocinero' ? '🍳 Cocina' : '🍷 Sala';
+            leyenda.innerHTML = `<strong>${tituloLeyenda}:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
         }
 
         const infoHoy = calcularTurnoParaFecha(datosPerfil.cargo, datosPerfil.rol_turno, new Date());
