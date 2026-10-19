@@ -227,7 +227,7 @@
         <!-- LEYENDA DEL ADMIN -->
         <div style="font-size: 0.7rem; text-align: left; margin-top: 10px; line-height: 1.6; background: #fefce8; padding: 10px; border-radius: 6px; border: 1px solid #fef08a;">
             <strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
-            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br>
+            <strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br>
             <strong>🏖️ Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>
         </div>
 
@@ -296,6 +296,7 @@
     let correccionesPendientes = [];
     let emailEmpleadoEditando = null; 
 
+    // --- FORMULA MATEMÁTICA PARA MEDIR DISTANCIA GPS ---
     function calcularDistanciaGPS(lat1, lon1, lat2, lon2) {
         const R = 6371e3;
         const rad = Math.PI / 180;
@@ -414,12 +415,12 @@
     }
 
     // ==========================================
-    // CÁLCULO DE TURNOS Y COLORES - CORREGIDO
+    // CÁLCULO DE TURNOS Y COLORES - ACTUALIZADO COMPLETO
     // ==========================================
     function calcularTurnoParaFecha(cargo, rolAsignado, fechaEvaluada) {
         if (!cargo || !rolAsignado) return null;
         
-        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026
+        const EPOCH = new Date(2026, 7, 31, 12, 0, 0); // Lunes 31 de Agosto de 2026 (Semana 1 / Fase 0)
         const hoy = new Date(fechaEvaluada); hoy.setHours(12,0,0,0);
         
         const diffTime = hoy - EPOCH;
@@ -429,30 +430,31 @@
 
         if (cargo === 'Cocinero') {
             const numRol = parseInt(rolAsignado.replace('Rol ', ''));
-            const S = ((semanasTranscurridas % 4) + 4) % 4; 
+            const semanaCiclo = ((semanasTranscurridas % 4) + 4) % 4; 
 
-            let abrevFull = (numRol === 1 || numRol === 3) ? 'M' : 'T'; 
-            let horaFull = (numRol === 1 || numRol === 3) ? '08:30 a 17:30' : '11:30 a 20:30'; 
-            let colorFull = (numRol === 1 || numRol === 3) ? '#16a34a' : '#9333ea'; 
+            let abrevFull = 'M'; let horaFull = '08:30 a 17:30'; let colorFull = '#16a34a'; // Verde
+            if (numRol === 2 || numRol === 4) { 
+                abrevFull = 'T'; horaFull = '11:30 a 20:30'; colorFull = '#9333ea'; // Morado
+            } 
 
             let trabajaFull = false;
             let trabajaAy = false;
 
             if (numRol === 3 || numRol === 4) { 
-                if (S === 0) {
+                if (semanaCiclo === 0) {
                     if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
                     if (diaSemana === 5) trabajaAy = true; 
-                } else if (S === 1) {
+                } else if (semanaCiclo === 1) {
                     if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
-                } else if (S === 2 || S === 3) {
+                } else if (semanaCiclo === 2 || semanaCiclo === 3) {
                     if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
                     if (diaSemana === 3) trabajaAy = true; 
                 }
             } else if (numRol === 1 || numRol === 2) { 
-                if (S === 0) {
+                if (semanaCiclo === 0) {
                     if (diaSemana >= 4 && diaSemana <= 7) trabajaFull = true;
                     if (diaSemana === 3) trabajaAy = true; 
-                } else if (S === 1 || S === 2 || S === 3) {
+                } else if (semanaCiclo === 1 || semanaCiclo === 2 || semanaCiclo === 3) {
                     if (diaSemana >= 1 && diaSemana <= 4) trabajaFull = true;
                     if (diaSemana === 5) trabajaAy = true; 
                 }
@@ -475,24 +477,29 @@
             let abrev = 'L', texto = 'Libre', color = '#a1a1aa';
             const setTurno = (a, t, c) => { abrev = a; texto = t; color = c; };
 
-            // SALA: Solo A, C, AP. Nada de AY.
+            // Ojo al color 'C': Naranja oscuro (#d97706) para distinguir de AY
             if (rolActual === 1) { 
-                if (diaSemana >= 4 && diaSemana <= 7) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana >= 4 && diaSemana <= 7) setTurno('C', '11:30 a 20:30', '#d97706'); 
+                if (diaSemana === 3) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 2) { 
                 if (diaSemana === 1) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
                 if (diaSemana >= 5 && diaSemana <= 7) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+                if (diaSemana === 2) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 3) { 
-                if (diaSemana === 1) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 1) setTurno('C', '11:30 a 20:30', '#d97706'); 
                 if (diaSemana === 2 || diaSemana === 6 || diaSemana === 7) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+                if (diaSemana === 3) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 4) { 
-                if (diaSemana === 2 || diaSemana === 3) setTurno('C', '11:30 a 20:30', '#ea580c'); 
+                if (diaSemana === 2 || diaSemana === 3) setTurno('C', '11:30 a 20:30', '#d97706'); 
                 if (diaSemana === 4 || diaSemana === 5) setTurno('AP', '09:00 a 18:00', '#2563eb'); 
+                if (diaSemana === 6) setTurno('AY', '12:00 a 16:00', '#ef4444');
             } 
             else if (rolActual === 5) { 
                 if (diaSemana >= 1 && diaSemana <= 4) setTurno('A', '08:30 a 17:30', '#16a34a'); 
+                if (diaSemana === 5) setTurno('AY', '12:00 a 16:00', '#ef4444');
             }
 
             return { rolActivo: `Rol ${rolActual}`, turno: { abrev, texto, color } };
@@ -528,7 +535,7 @@
             if (datosPerfil.cargo === 'Cocinero') {
                 leyenda.innerHTML = `<strong>🍳 Cocina:</strong> <span style="color:#16a34a; font-weight:bold;">M</span> (8:30-17:30) | <span style="color:#9333ea; font-weight:bold;">T</span> (11:30-20:30) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             } else if (datosPerfil.cargo === 'Camarero') {
-                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#ea580c; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
+                leyenda.innerHTML = `<strong>🍷 Sala:</strong> <span style="color:#16a34a; font-weight:bold;">A</span> (8:30-17:30) | <span style="color:#d97706; font-weight:bold;">C</span> (11:30-20:30) | <span style="color:#2563eb; font-weight:bold;">AP</span> (09:00-18:00) | <span style="background:#ef4444; color:white; padding:0 3px; border-radius:3px; font-weight:bold;">AY</span> (12:00-16:00)<br><strong>🏖 Libre:</strong> <span style="color:#a1a1aa; font-weight:bold;">L</span>`;
             }
         }
 
@@ -555,6 +562,7 @@
         const hoyReal = new Date();
         const nombresDiasCorto = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 
+        // --- 1. CABECERA DIAS DEL MES ---
         let htmlHead = '<tr><th class="sticky-col">Empleado</th>';
         for (let i = 1; i <= diasEnMes; i++) {
             const fechaCabecera = new Date(anyo, mes - 1, i);
@@ -566,6 +574,7 @@
         htmlHead += '</tr>';
         thead.innerHTML = htmlHead;
 
+        // --- 2. FILA DEL EMPLEADO ---
         let rowHtml = `<tr><td class="sticky-col">${datosPerfil.nombre}</td>`;
         for (let dia = 1; dia <= diasEnMes; dia++) {
             const fechaEvaluada = new Date(anyo, mes - 1, dia);
